@@ -1,0 +1,81 @@
+node_modules/
+out/
+.vscode-test/
+*.vsix
+*.map
+
+# IDE + AI
+.vscode/
+.cursor/
+.cursorignore
+
+# Dependency directories
+node_modules/
+jspm_packages/
+
+# Build outputs
+dist/
+build/
+out/
+.next/
+.nuxt/
+.cache/
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# Environment variables and secrets
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env*.local
+*.pem
+.npmrc
+.yarnrc
+
+# Package manager files
+package-lock.json
+yarn.lock
+.yarn-integrity
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/sdks
+!.yarn/versions
+
+# Testing
+coverage/
+.nyc_output/
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE files
+.idea/
+.vscode/*
+*.sublime-project
+*.sublime-workspace
+*.swp
+*.swo
+.history/
+.Rhistory
+
+# Misc
+.tmp/
+temp/
+.cache/

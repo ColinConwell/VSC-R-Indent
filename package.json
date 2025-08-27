@@ -1,0 +1,86 @@
+{
+  "name": "vsc-r-indent",
+  "version": "0.1.0",
+  "description": "On-type indentation adjustments for R",
+  "displayName": "R Indent",
+  "main": "./out/extension.js",
+  "publisher": "ColinConwell",
+  "scripts": {
+    "compile": "tsc -p .",
+    "watch": "tsc -w -p .",
+    "build:vsix": "bash ./scripts/build-vsix.sh",
+    "vscode:prepublish": "npm run compile",
+    "install:local": "bash ./scripts/install-local.sh",
+    "install:cursor": "bash ./scripts/install-local.sh --cursor"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ColinConwell/VSC-R-Indent.git"
+  },
+  "keywords": [],
+  "author": "developer@dev.com",
+  "license": "MIT",
+  "type": "module",
+  "categories": [
+    "Formatters"
+  ],
+  "engines": {
+    "vscode": "^1.95.0"
+  },
+  "activationEvents": [
+    "onLanguage:r"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "r",
+        "aliases": [
+          "R",
+          "r"
+        ],
+        "extensions": [
+          ".r",
+          ".R"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "configuration": {
+      "title": "R Indent",
+      "properties": {
+        "rIndent.afterPipe": {
+          "type": "string",
+          "enum": ["indentOneUnit", "alignToNextToken", "none"],
+          "default": "indentOneUnit",
+          "description": "Behavior when pressing Enter after a pipe (%>%, |> )."
+        },
+        "rIndent.pipeIndentUnits": {
+          "type": "number",
+          "default": 1,
+          "minimum": 0,
+          "description": "How many indentation units to apply after a pipe when using indentOneUnit."
+        },
+        "rIndent.enableParenAlign": {
+          "type": "boolean",
+          "default": true,
+          "description": "Align new lines inside parentheses to one char after the matching '('."
+        },
+        "rIndent.parenAlignOnlyAfterComma": {
+          "type": "boolean",
+          "default": true,
+          "description": "Only apply paren alignment when the previous code ends with a comma."
+        }
+      }
+    }
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.11",
+    "@types/vscode": "^1.95.0",
+    "typescript": "^5.9.2",
+    "@vscode/vsce": "^3.21.0"
+  },
+  "bugs": {
+    "url": "https://github.com/ColinConwell/VSC-R-Indent/issues"
+  },
+  "homepage": "https://github.com/ColinConwell/VSC-R-Indent#readme"
+}
