@@ -5,6 +5,7 @@
 import * as vscode from 'vscode';
 import { BaseRule } from './BaseRule.js';
 import { IndentationContext, RIndentConfig } from '../config/types.js';
+import { ConfigurationManager } from '../config/settings.js';
 
 export class OperatorChainRule extends BaseRule {
   constructor() {
@@ -44,7 +45,7 @@ export class OperatorChainRule extends BaseRule {
     
     // Only consider "top-level" operators (pipes, assignment at statement level)
     // Not parameter assignments inside function calls
-    const isTopLevelOperator = currentLineEndsWithOp && this.isTopLevelOperator(currentLineTextUpToCursor.trim());
+    const isTopLevelOperator = currentLineEndsWithOp && this.isTopLevelOperator(currentLineTextUpToCursor.trim(), document, position);
     
     // Only apply if:
     // 1. Current line ends with a TOP-LEVEL operator, OR
@@ -97,6 +98,10 @@ export class OperatorChainRule extends BaseRule {
     const baseLine = document.lineAt(baseLineNumber);
     const baseIndent = baseLine.text.match(/^\s*/)?.[0] ?? '';
     const operatorIndent = this.createIndent(config.pipeIndentSize);
+    
+    if (config.enableDebugLogging) {
+      console.log(`[OperatorChain] Base line ${baseLineNumber}: "${baseLine.text.trim()}" -> base indent: ${baseIndent.length} + operator indent: ${operatorIndent.length} = ${baseIndent.length + operatorIndent.length} spaces`);
+    }
     
     return baseIndent + operatorIndent;
   }
@@ -221,11 +226,17 @@ export class OperatorChainRule extends BaseRule {
   /**
    * Check if an operator is at the "top level" (not inside function calls) OR a parameter assignment
    */
-  private isTopLevelOperator(lineText: string): boolean {
+  private isTopLevelOperator(lineText: string, document?: vscode.TextDocument, position?: vscode.Position): boolean {
     // Pipe operators are always top-level
     const pipeOperators = ['%>%', '|>', '%<>%', '%T>%', '%$%'];
     if (pipeOperators.some(op => lineText.endsWith(op))) {
       return true;
+    }
+    
+    // Plus operator is top-level when OUTSIDE parentheses (ggplot chains)
+    if (lineText.endsWith('+') && document && position) {
+      const isInsideParens = this.isInsideParentheses(document, position);
+      return !isInsideParens; // Top-level only when outside parentheses
     }
     
     // Assignment operators are top-level if they're parameter assignments (handled separately)
@@ -331,10 +342,15 @@ export class OperatorChainRule extends BaseRule {
    * Find the base indentation of the operator chain
    */
   private findChainBaseIndent(document: vscode.TextDocument, fromLine: number, cursorPosition?: vscode.Position): number {
-    let currentLine = fromLine;
-    let hasSeenOperator = false;
+    const config = ConfigurationManager.getInstance().getConfig();
+    if (config.enableDebugLogging) {
+      console.log(`[OperatorChain] findChainBaseIndent starting from line ${fromLine}`);
+    }
     
-    // Look backwards to find the first line that doesn't end with an operator
+    let currentLine = fromLine;
+    let firstOperatorLine = fromLine; // Track the first line in the chain
+    
+    // Go backwards through the entire operator chain to find the absolute start
     while (currentLine >= 0) {
       const line = document.lineAt(currentLine);
       
@@ -346,53 +362,68 @@ export class OperatorChainRule extends BaseRule {
         lineTextToCheck = line.text.trim();
       }
       
-      // If we encounter an empty line after seeing operators, stop here
-      if (lineTextToCheck.length === 0) {
-        if (hasSeenOperator) {
-          // Empty line after operators - the chain starts on the next non-empty line
-          currentLine++;
-          break;
-        } else {
-          // Empty line before any operators - keep searching
-          currentLine--;
-          continue;
-        }
+      if (config.enableDebugLogging) {
+        console.log(`[OperatorChain] Checking line ${currentLine}: "${lineTextToCheck}" - ends with operator: ${this.endsWithOperator(lineTextToCheck)}`);
       }
       
-      // Check for chain boundaries after seeing operators
-      if (hasSeenOperator && this.isChainBoundary(line.text)) {
-        // Found a boundary - the chain starts on the next line
-        return currentLine + 1;
+      // If we encounter an empty line, stop here
+      if (lineTextToCheck.length === 0) {
+        if (config.enableDebugLogging) {
+          console.log(`[OperatorChain] Hit empty line at ${currentLine}, chain starts at ${firstOperatorLine}`);
+        }
+        break;
+      }
+      
+      // Check for chain boundaries
+      if (this.isChainBoundary(line.text)) {
+        if (config.enableDebugLogging) {
+          console.log(`[OperatorChain] Hit boundary at line ${currentLine}, chain starts at ${firstOperatorLine}`);
+        }
+        break;
       }
       
       // Check if this line ends with an operator
       if (this.endsWithOperator(lineTextToCheck)) {
-        hasSeenOperator = true;
+        // This is part of the chain - update the first operator line
+        firstOperatorLine = currentLine;
+        if (config.enableDebugLogging) {
+          console.log(`[OperatorChain] Line ${currentLine} is part of chain, updating chain start to ${firstOperatorLine}`);
+        }
         currentLine--;
         continue;
-      }
-      
-      // Found a line that doesn't end with an operator
-      if (hasSeenOperator) {
-        // This is the base of our chain
-        return currentLine;
       } else {
-        // We haven't seen any operators yet, so this line is not part of a chain
-        // The chain must start at fromLine
-        return fromLine;
+        // This line doesn't end with an operator
+        if (currentLine === fromLine) {
+          // The fromLine itself doesn't end with operator - not part of a chain
+          if (config.enableDebugLogging) {
+            console.log(`[OperatorChain] FromLine ${fromLine} doesn't end with operator, using it as base`);
+          }
+          return fromLine;
+        } else {
+          // We've found a line that doesn't end with operator
+          // Check if it's a function argument that we should skip over
+          if (this.isInsideFunctionCall(line.text)) {
+            if (config.enableDebugLogging) {
+              console.log(`[OperatorChain] Line ${currentLine} appears to be function argument, continuing search`);
+            }
+            currentLine--;
+            continue;
+          } else {
+            // This is where the chain starts
+            if (config.enableDebugLogging) {
+              console.log(`[OperatorChain] Found chain break at line ${currentLine}, chain starts at ${firstOperatorLine}`);
+            }
+            break;
+          }
+        }
       }
     }
     
-    // Fallback: find the first non-empty line
-    while (currentLine < document.lineCount) {
-      const line = document.lineAt(currentLine);
-      if (line.text.trim().length > 0) {
-        return currentLine;
-      }
-      currentLine++;
+    if (config.enableDebugLogging) {
+      console.log(`[OperatorChain] Chain base determined: line ${firstOperatorLine}: "${document.lineAt(firstOperatorLine).text.trim()}"`);
     }
     
-    return fromLine;
+    return firstOperatorLine;
   }
   
   /**
@@ -401,23 +432,48 @@ export class OperatorChainRule extends BaseRule {
   private isChainBoundary(lineText: string): boolean {
     const trimmed = lineText.trim();
     
-    // Opening brackets/parentheses (start of new context)
-    if (/[({[]/.test(trimmed)) {
-      return true;
-    }
-    
-    // Closing brackets/parentheses (end of context)
-    if (/[)}\]]/.test(trimmed)) {
-      return true;
-    }
-    
-    // Lines containing commas (function arguments)
-    if (/,/.test(trimmed)) {
-      return true;
-    }
-    
-    // Function definitions and control flow
+    // Function definitions and control flow at start of line
     if (/^(function|if|else|for|while|repeat|switch)\b/.test(trimmed)) {
+      return true;
+    }
+    
+    // Lines that start with closing brackets (end of major blocks)
+    if (/^[)}\]]/.test(trimmed)) {
+      return true;
+    }
+    
+    // Note: Removed general bracket/comma detection as it was too aggressive
+    // Brackets and commas WITHIN lines (like "func() +") should not be boundaries
+    // Only structural boundaries that actually separate logical code sections
+    
+    return false;
+  }
+
+  /**
+   * Check if a line appears to be inside a function call (argument list)
+   */
+  private isInsideFunctionCall(lineText: string): boolean {
+    const trimmed = lineText.trim();
+    
+    // Lines that look like function arguments:
+    // - parameter = value,
+    // - parameter = value)
+    // - Just values or expressions with commas
+    // - Lines with significant indentation (suggesting they're inside something)
+    
+    // Check for parameter assignments
+    if (/^\s*\w+\s*=/.test(lineText)) {
+      return true;
+    }
+    
+    // Check for lines ending with commas (likely function arguments)
+    if (/,\s*$/.test(trimmed)) {
+      return true;
+    }
+    
+    // Check for highly indented lines (more than 4 spaces suggests nesting)
+    const leadingSpaces = lineText.length - lineText.trimStart().length;
+    if (leadingSpaces > 4) {
       return true;
     }
     
