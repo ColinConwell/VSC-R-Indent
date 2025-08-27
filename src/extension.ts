@@ -21,13 +21,11 @@ function shouldBypassDefaultIndentation(
       const prevLine = document.lineAt(position.line - 1);
       const prevLineText = prevLine.text.trim();
       
-      // Previous line ends with pipe/+ but current line doesn't contain pipe/+ = completed chain
-      const prevHasPipe = /(%>%|\|>)\s*$/.test(prevLineText);
-      const prevHasPlus = /\+\s*$/.test(prevLineText);
-      const currentHasPipe = /(%>%|\|>)/.test(currentLineText);
-      const currentHasPlus = /\+/.test(currentLineText);
+      // Previous line ends with operator but current line doesn't contain operators = completed chain
+      const prevHasOperator = /(%>%|\|>|\+|-|\*|\/|=|<-|->)\s*$/.test(prevLineText);
+      const currentHasOperator = /(%>%|\|>|\+|-|\*|\/|=|<-|->)/.test(currentLineText);
       
-      if ((prevHasPipe && !currentHasPipe) || (prevHasPlus && !currentHasPlus)) {
+      if (prevHasOperator && !currentHasOperator) {
         return true;
       }
     }

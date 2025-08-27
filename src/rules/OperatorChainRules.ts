@@ -296,7 +296,12 @@ export class OperatorChainRule extends BaseRule {
       return false;
     }
     
-    // Default to continuation for other cases
+    // Simple expressions (numbers, identifiers) complete the chain
+    if (/^\s*(\d+(\.\d+)?[LlFf]?|\w+)\s*$/.test(trimmed)) {
+      return false;
+    }
+    
+    // Default to continuation for other cases (complex expressions, etc.)
     return true;
   }
   

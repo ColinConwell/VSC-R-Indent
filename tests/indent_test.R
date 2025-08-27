@@ -2,8 +2,8 @@ if (!require(pacman)) {install.packages("pacman")}
 pacman::p_load('skimr', 'tidyverse')
 
 strtoi("5", 
-       base =
-        10L)
+       base = 
+         10L)
 
 6 +
   7 +
@@ -11,7 +11,9 @@ strtoi("5",
   9 *
   4 /
   4
+
   
+
   
 
 ggplot(mtcars, aes(disp, mpg)) +
@@ -20,9 +22,13 @@ ggplot(mtcars, aes(disp, mpg)) +
                end = 0.4 * pi, 
                inner.radius = 0.3)
 
+
+
 data(mtcars) %>%
   skim() %>%
   kable()
+
+
 
 
 

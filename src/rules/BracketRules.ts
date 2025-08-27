@@ -25,14 +25,23 @@ export class BracketAlignmentRule extends BaseRule {
     
     // Look left from cursor to find the nearest opening bracket
     const bracketResult = this.findNearestOpeningBracket(document, position);
+    
+    // If no brackets found, BracketAlignment doesn't apply regardless of operators
+    if (bracketResult === null) {
+      if (config.enableDebugLogging) {
+        console.log(`[BracketAlignment] Line ${context.line}: No bracket found, rule doesn't apply`);
+      }
+      return false;
+    }
+    
     const hasNearbyOperator = this.hasOperatorNearCursor(document, position);
     
     if (config.enableDebugLogging) {
-      console.log(`[BracketAlignment] Line ${context.line}: Found bracket: ${bracketResult !== null}, Has nearby operator: ${hasNearbyOperator}`);
+      console.log(`[BracketAlignment] Line ${context.line}: Found bracket: true, Has nearby operator: ${hasNearbyOperator}`);
     }
     
     // Apply bracket alignment only if we have a bracket and no nearby operator
-    return bracketResult !== null && !hasNearbyOperator;
+    return !hasNearbyOperator;
   }
   
   public getIndentation(context: IndentationContext, config: RIndentConfig): string | null {
