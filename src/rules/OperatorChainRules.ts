@@ -23,6 +23,9 @@ export class OperatorChainRule extends BaseRule {
     // First check: Are we inside parentheses/brackets? 
     // Only defer to BracketAlignment if it's NOT a parameter assignment
     if (this.isInsideParentheses(document, position) && !this.isParameterAssignment(document, position)) {
+      if (config.enableDebugLogging) {
+        console.log(`[OperatorChain] Line ${position.line}: Inside parentheses (non-parameter), deferring to BracketAlignment`);
+      }
       return false;
     }
     
@@ -46,7 +49,13 @@ export class OperatorChainRule extends BaseRule {
     // Only apply if:
     // 1. Current line ends with a TOP-LEVEL operator, OR
     // 2. Previous line ends with operator AND current line doesn't complete the chain
-    return isTopLevelOperator || (prevLineEndsWithOp && this.isChainContinuation(currentLineTextUpToCursor));
+    const result = isTopLevelOperator || (prevLineEndsWithOp && this.isChainContinuation(currentLineTextUpToCursor));
+    
+    if (config.enableDebugLogging) {
+      console.log(`[OperatorChain] Line ${position.line}: Current ends with op: ${currentLineEndsWithOp}, is top-level: ${isTopLevelOperator}, Prev ends with op: ${prevLineEndsWithOp}, Result: ${result}`);
+    }
+    
+    return result;
   }
   
   public getIndentation(context: IndentationContext, config: RIndentConfig): string | null {

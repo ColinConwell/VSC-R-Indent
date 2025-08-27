@@ -28,10 +28,17 @@ export class BracketAlignmentRule extends BaseRule {
     
     // If no brackets found, BracketAlignment doesn't apply regardless of operators
     if (bracketResult === null) {
+      if (config.enableDebugLogging) {
+        console.log(`[BracketAlignment] Line ${context.line}: No bracket found`);
+      }
       return false;
     }
     
     const hasNearbyOperator = this.hasOperatorNearCursor(document, position);
+    
+    if (config.enableDebugLogging) {
+      console.log(`[BracketAlignment] Line ${context.line}: Found bracket at line ${bracketResult.line}, col ${bracketResult.column}, has nearby operator: ${hasNearbyOperator}`);
+    }
     
     // Apply bracket alignment only if we have a bracket and no nearby operator
     return !hasNearbyOperator;
@@ -57,26 +64,20 @@ export class BracketAlignmentRule extends BaseRule {
   }
   
   /**
-   * Check if line ends with an operator
+   * Check if line ends with a CHAIN-LEVEL operator (for BracketAlignment deferral logic)
+   * Only checks for operators that should override bracket alignment (pipes, ggplot +)
    */
-  private endsWithOperator(lineText: string): boolean {
+  private endsWithChainOperator(lineText: string): boolean {
     const cleanText = lineText.replace(/#.*$/, '').trim();
     
-    const continuationOperators = [
-      /(%>%|\|>)\s*$/,
-      /\+\s*$/,
-      /-\s*$/,
-      /\*\s*$/,
-      /\/\s*$/,
-      /=\s*$/,
-      /(<-|->) *$/,
-      // Note: Comma removed - doesn't trigger indentation in RStudio
-      /(\|\||&&)\s*$/,
-      /[<>]=?\s*$/,
-      /[!=]=\s*$/,
+    // Only chain-level operators that should override bracket alignment
+    const chainOperators = [
+      /(%>%|\|>)\s*$/,  // Pipes
+      /\+\s*$/,         // ggplot chains
+      // Note: Removed = and other operators - these should NOT override bracket alignment
     ];
     
-    return continuationOperators.some(pattern => pattern.test(cleanText));
+    return chainOperators.some(pattern => pattern.test(cleanText));
   }
   
   /**
@@ -136,7 +137,7 @@ export class BracketAlignmentRule extends BaseRule {
         trimmedLine === '' ||  // Empty line
         trimmedLine.endsWith('}') ||  // End of block
         trimmedLine.endsWith(')') ||  // End of function call
-        !/^\s/.test(lineText) && !this.endsWithOperator(trimmedLine)  // Non-indented line that doesn't end with operator
+        !/^\s/.test(lineText) && !this.endsWithChainOperator(trimmedLine)  // Non-indented line that doesn't end with operator
       )) {
         break;
       }
@@ -188,14 +189,45 @@ export class BracketAlignmentRule extends BaseRule {
       }
     }
     
-    // Check if previous line ends with an operator
+    // Check if previous line ends with a chain-level operator
+    // BUT only if we're not inside nested parentheses (function arguments take precedence)
     if (position.line > 0) {
       const prevLine = document.lineAt(position.line - 1);
       const prevLineText = prevLine.text.trim();
-      return this.endsWithOperator(prevLineText);
+      
+      if (this.endsWithChainOperator(prevLineText)) {
+        // If we're deeply inside parentheses, bracket alignment takes precedence over chain operators
+        const parenthesesDepth = this.getParenthesesDepth(document, position);
+        return parenthesesDepth === 0; // Only defer if we're not inside parentheses
+      }
     }
     
     return false;
+  }
+  
+  /**
+   * Get the depth of nested parentheses at the current position
+   */
+  private getParenthesesDepth(document: vscode.TextDocument, position: vscode.Position): number {
+    let depth = 0;
+    
+    // Check from start of document to current position
+    for (let lineNum = 0; lineNum <= position.line; lineNum++) {
+      const line = document.lineAt(lineNum);
+      const text = lineNum === position.line 
+        ? line.text.substring(0, position.character)
+        : line.text;
+      
+      for (const char of text) {
+        if (char === '(' || char === '[' || char === '{') {
+          depth++;
+        } else if (char === ')' || char === ']' || char === '}') {
+          depth--;
+        }
+      }
+    }
+    
+    return Math.max(0, depth);
   }
   
   /**
