@@ -45,7 +45,7 @@ export function activate(context: vscode.ExtensionContext): void {
   // Initialize the indentation engine
   indentationEngine = new IndentationEngine();
   
-  DebugLogger.log('Extension activated');
+
   
   // Register type command handler
   const typeHandler = vscode.commands.registerCommand('type', async (args?: { text?: string }) => {
@@ -78,10 +78,10 @@ export function activate(context: vscode.ExtensionContext): void {
         eb.insert(cursor, `\n${targetIndent}`);
       });
       
-      // Log the result with the rule that was applied
+      // Log successful rule application
       const appliedRule = indentationEngine.getLastAppliedRule();
-      if (appliedRule) {
-        DebugLogger.logRuleApplication(appliedRule, targetIndent, cursor.line, success);
+      if (appliedRule && success) {
+        DebugLogger.logRuleSuccess(appliedRule, cursor.line, targetIndent.length);
       }
       
       if (!success) {
@@ -93,16 +93,18 @@ export function activate(context: vscode.ExtensionContext): void {
     // Check if we should bypass default indentation for completed chains
     const position = new vscode.Position(cursor.line, cursor.character);
     if (shouldBypassDefaultIndentation(document, position)) {
-      // Silently bypass - no debug message needed
       const success = await editor.edit((eb) => {
         eb.insert(cursor, '\n');
       });
+      
       if (success) {
+        DebugLogger.logBypassDefault(cursor.line);
         return undefined;
       }
     }
     
-    // No rule applied - let VSCode handle it with default behavior
+    // Log and fall back to default VSCode behavior
+    DebugLogger.logNoRuleApplied(cursor.line);
     return vscode.commands.executeCommand('default:type', args);
   });
 
@@ -138,7 +140,6 @@ export function activate(context: vscode.ExtensionContext): void {
               edits.push(vscode.TextEdit.replace(range, targetIndent));
               
               // Note: OnType formatting doesn't track which rule was applied
-              DebugLogger.log(`Line ${position.line}: Closing bracket '${ch}' formatted`);
             }
           }
         }

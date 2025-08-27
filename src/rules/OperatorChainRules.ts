@@ -23,7 +23,6 @@ export class OperatorChainRule extends BaseRule {
     // First check: Are we inside parentheses/brackets? 
     // Only defer to BracketAlignment if it's NOT a parameter assignment
     if (this.isInsideParentheses(document, position) && !this.isParameterAssignment(document, position)) {
-      console.log(`[OperatorChain] Line ${position.line}: Inside parentheses (non-parameter), deferring to BracketAlignment`);
       return false;
     }
     
@@ -47,11 +46,7 @@ export class OperatorChainRule extends BaseRule {
     // Only apply if:
     // 1. Current line ends with a TOP-LEVEL operator, OR
     // 2. Previous line ends with operator AND current line doesn't complete the chain
-    const result = isTopLevelOperator || (prevLineEndsWithOp && this.isChainContinuation(currentLineTextUpToCursor));
-    
-    console.log(`[OperatorChain] Line ${position.line}: Current line up to cursor "${currentLineTextUpToCursor}" ends with op: ${currentLineEndsWithOp}, is top-level: ${isTopLevelOperator}, Previous line ends with op: ${prevLineEndsWithOp}, Result: ${result}`);
-    
-    return result;
+    return isTopLevelOperator || (prevLineEndsWithOp && this.isChainContinuation(currentLineTextUpToCursor));
   }
   
   public getIndentation(context: IndentationContext, config: RIndentConfig): string | null {
@@ -93,8 +88,6 @@ export class OperatorChainRule extends BaseRule {
     const baseLine = document.lineAt(baseLineNumber);
     const baseIndent = baseLine.text.match(/^\s*/)?.[0] ?? '';
     const operatorIndent = this.createIndent(config.pipeIndentSize);
-    
-    console.log(`[OperatorChain] Base line ${baseLineNumber}: "${baseLine.text}" -> base indent: "${baseIndent}" (${baseIndent.length} chars) + operator indent: "${operatorIndent}" (${operatorIndent.length} chars)`);
     
     return baseIndent + operatorIndent;
   }
@@ -265,8 +258,6 @@ export class OperatorChainRule extends BaseRule {
     const parameterStartIndent = leadingSpaces;
     const spacesToAlignWithValue = ' '.repeat(parameterPart.length);
     
-    console.log(`[OperatorChain] Parameter assignment: "${parameterPart}" -> aligning with ${parameterStartIndent.length + parameterPart.length} chars`);
-    
     return parameterStartIndent + spacesToAlignWithValue;
   }
   
@@ -334,8 +325,6 @@ export class OperatorChainRule extends BaseRule {
     let currentLine = fromLine;
     let hasSeenOperator = false;
     
-    console.log(`[OperatorChain] findChainBaseIndent starting from line ${fromLine}`);
-    
     // Look backwards to find the first line that doesn't end with an operator
     while (currentLine >= 0) {
       const line = document.lineAt(currentLine);
@@ -348,11 +337,8 @@ export class OperatorChainRule extends BaseRule {
         lineTextToCheck = line.text.trim();
       }
       
-      console.log(`[OperatorChain] Checking line ${currentLine}: "${lineTextToCheck}"`);
-      
       // If we encounter an empty line after seeing operators, stop here
       if (lineTextToCheck.length === 0) {
-        console.log(`[OperatorChain] Empty line at ${currentLine}, hasSeenOperator: ${hasSeenOperator}`);
         if (hasSeenOperator) {
           // Empty line after operators - the chain starts on the next non-empty line
           currentLine++;
@@ -366,35 +352,29 @@ export class OperatorChainRule extends BaseRule {
       
       // Check for chain boundaries after seeing operators
       if (hasSeenOperator && this.isChainBoundary(line.text)) {
-        console.log(`[OperatorChain] Found boundary at line ${currentLine}: "${lineTextToCheck}"`);
         // Found a boundary - the chain starts on the next line
         return currentLine + 1;
       }
       
       // Check if this line ends with an operator
       if (this.endsWithOperator(lineTextToCheck)) {
-        console.log(`[OperatorChain] Line ${currentLine} ends with operator`);
         hasSeenOperator = true;
         currentLine--;
         continue;
       }
       
       // Found a line that doesn't end with an operator
-      console.log(`[OperatorChain] Line ${currentLine} doesn't end with operator, hasSeenOperator: ${hasSeenOperator}`);
       if (hasSeenOperator) {
         // This is the base of our chain
-        console.log(`[OperatorChain] Found base at line ${currentLine}`);
         return currentLine;
       } else {
         // We haven't seen any operators yet, so this line is not part of a chain
         // The chain must start at fromLine
-        console.log(`[OperatorChain] No operators seen, returning fromLine ${fromLine}`);
         return fromLine;
       }
     }
     
     // Fallback: find the first non-empty line
-    console.log(`[OperatorChain] Reached fallback logic`);
     while (currentLine < document.lineCount) {
       const line = document.lineAt(currentLine);
       if (line.text.trim().length > 0) {
@@ -412,36 +392,26 @@ export class OperatorChainRule extends BaseRule {
   private isChainBoundary(lineText: string): boolean {
     const trimmed = lineText.trim();
     
-    console.log(`[OperatorChain] isChainBoundary checking full line: "${lineText}" -> trimmed: "${trimmed}"`);
-    
     // Opening brackets/parentheses (start of new context)
     if (/[({[]/.test(trimmed)) {
-      console.log(`[OperatorChain] Boundary: opening bracket`);
       return true;
     }
     
     // Closing brackets/parentheses (end of context)
     if (/[)}\]]/.test(trimmed)) {
-      console.log(`[OperatorChain] Boundary: closing bracket`);
       return true;
     }
     
     // Lines containing commas (function arguments)
     if (/,/.test(trimmed)) {
-      console.log(`[OperatorChain] Boundary: comma`);
       return true;
     }
     
     // Function definitions and control flow
     if (/^(function|if|else|for|while|repeat|switch)\b/.test(trimmed)) {
-      console.log(`[OperatorChain] Boundary: function/control flow`);
       return true;
     }
     
-    // Don't treat column 0 lines as boundaries - they can be chain bases
-    // The empty line detection in findChainBaseIndent handles context separation
-    
-    console.log(`[OperatorChain] Not a boundary`);
     return false;
   }
   

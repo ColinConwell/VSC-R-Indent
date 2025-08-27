@@ -97,12 +97,10 @@ export class IndentationEngine {
           if (indentation !== null) {
             this.lastAppliedRule = rule.name;
             return indentation;
-          } else {
-            DebugLogger.log(`Line ${context.line}: ${rule.name} → ❌ returned null`);
           }
         }
       } catch (error) {
-        DebugLogger.log(`Line ${context.line}: Error in rule ${rule.name}: ${error}`);
+        // Silently ignore rule errors
       }
     }
     

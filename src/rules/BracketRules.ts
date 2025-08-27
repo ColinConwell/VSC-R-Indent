@@ -28,17 +28,10 @@ export class BracketAlignmentRule extends BaseRule {
     
     // If no brackets found, BracketAlignment doesn't apply regardless of operators
     if (bracketResult === null) {
-      if (config.enableDebugLogging) {
-        console.log(`[BracketAlignment] Line ${context.line}: No bracket found, rule doesn't apply`);
-      }
       return false;
     }
     
     const hasNearbyOperator = this.hasOperatorNearCursor(document, position);
-    
-    if (config.enableDebugLogging) {
-      console.log(`[BracketAlignment] Line ${context.line}: Found bracket: true, Has nearby operator: ${hasNearbyOperator}`);
-    }
     
     // Apply bracket alignment only if we have a bracket and no nearby operator
     return !hasNearbyOperator;
@@ -54,18 +47,11 @@ export class BracketAlignmentRule extends BaseRule {
     // Find the nearest opening bracket to the left of cursor
     const bracketResult = this.findNearestOpeningBracket(document, position);
     if (!bracketResult) {
-      if (config.enableDebugLogging) {
-        console.log(`[BracketAlignment] Line ${context.line}: No opening bracket found`);
-      }
       return null;
     }
     
     // Align to column after the bracket
     const targetColumn = bracketResult.column + 1;
-    
-    if (config.enableDebugLogging) {
-      console.log(`[BracketAlignment] Line ${context.line}: Found bracket at line ${bracketResult.line}, col ${bracketResult.column}, aligning to col ${targetColumn}`);
-    }
     
     return ' '.repeat(targetColumn);
   }
