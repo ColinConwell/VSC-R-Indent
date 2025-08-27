@@ -1,13 +1,15 @@
-node_modules/
-out/
-.vscode-test/
-*.vsix
-*.map
-
 # IDE + AI
 .vscode/
 .cursor/
 .cursorignore
+
+# VSCE
+*.vsix
+node_modules/
+out/
+.vscode-test/
+*.map
+backup/
 
 # Dependency directories
 node_modules/
