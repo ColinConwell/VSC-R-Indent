@@ -22,8 +22,8 @@
     ["\"", "\""]
   ],
   "indentationRules": {
-    "increaseIndentPattern": "^.*(\\{[^}\\\"']*$)",
-    "decreaseIndentPattern": "^\\s*[\\}].*"
+    "increaseIndentPattern": "^.*(\{[^}\"']*$|\([^)\"']*$|\[[^]\"']*$)",
+    "decreaseIndentPattern": "^\s*[\}\)\]].*"
   },
   "onEnterRules": [
     {

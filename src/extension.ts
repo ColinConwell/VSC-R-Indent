@@ -1,8 +1,119 @@
 import * as vscode from 'vscode';
+import { IndentationEngine } from './indentation/indentationEngine.js';
+import { DebugLogger } from './utils/debugUtils.js';
+
+let indentationEngine: IndentationEngine;
+
+/**
+ * Check if we should bypass VSCode's default indentation for completed chains
+ */
+function shouldBypassDefaultIndentation(
+  document: vscode.TextDocument, 
+  position: vscode.Position
+): boolean {
+  const currentLine = document.lineAt(position.line);
+  const currentLineText = currentLine.text.trim();
+  
+  // Only bypass if current line has content (meaning it's a completed statement)
+  if (currentLineText.length > 0) {
+    // Check for completed pipe chains
+    if (position.line > 0) {
+      const prevLine = document.lineAt(position.line - 1);
+      const prevLineText = prevLine.text.trim();
+      
+      // Previous line ends with pipe/+ but current line doesn't contain pipe/+ = completed chain
+      const prevHasPipe = /(%>%|\|>)\s*$/.test(prevLineText);
+      const prevHasPlus = /\+\s*$/.test(prevLineText);
+      const currentHasPipe = /(%>%|\|>)/.test(currentLineText);
+      const currentHasPlus = /\+/.test(currentLineText);
+      
+      if ((prevHasPipe && !currentHasPipe) || (prevHasPlus && !currentHasPlus)) {
+        return true;
+      }
+    }
+    
+    // Check for completed bracket expressions (line ends with closing bracket/parenthesis)
+    if (/[)\]}]\s*$/.test(currentLineText)) {
+      return true;
+    }
+  }
+  
+  return false;
+}
+
+
 
 export function activate(context: vscode.ExtensionContext): void {
+  // Initialize the indentation engine
+  indentationEngine = new IndentationEngine();
+  
+  DebugLogger.log('Extension activated');
+  
+  // Register type command handler
+  const typeHandler = vscode.commands.registerCommand('type', async (args?: { text?: string }) => {
+    const editor = vscode.window.activeTextEditor;
+    if (!editor) {
+      return vscode.commands.executeCommand('default:type', args);
+    }
+    const { document } = editor;
+    
+    // Guard: if args missing or not a newline, delegate to default immediately
+    if (document.languageId !== 'r' || !args || typeof args.text !== 'string' || args.text !== '\n') {
+      return vscode.commands.executeCommand('default:type', args);
+    }
+
+    // Only handle single-cursor, collapsed selections
+    if (editor.selections.length !== 1 || !editor.selection.isEmpty) {
+      return vscode.commands.executeCommand('default:type', args);
+    }
+
+    const cursor = editor.selection.active;
+    const lineText = document.lineAt(cursor.line).text;
+    
+
+    
+    // Use the new indentation engine
+    const targetIndent = indentationEngine.calculateEnterIndentation(document, cursor);
+    
+    if (targetIndent !== null) {
+      const success = await editor.edit((eb) => {
+        eb.insert(cursor, `\n${targetIndent}`);
+      });
+      
+      // Log the result with the rule that was applied
+      const appliedRule = indentationEngine.getLastAppliedRule();
+      if (appliedRule) {
+        DebugLogger.logRuleApplication(appliedRule, targetIndent, cursor.line, success);
+      }
+      
+      if (!success) {
+        return vscode.commands.executeCommand('default:type', args);
+      }
+      return undefined;
+    }
+    
+    // Check if we should bypass default indentation for completed chains
+    const position = new vscode.Position(cursor.line, cursor.character);
+    if (shouldBypassDefaultIndentation(document, position)) {
+      // Silently bypass - no debug message needed
+      const success = await editor.edit((eb) => {
+        eb.insert(cursor, '\n');
+      });
+      if (success) {
+        return undefined;
+      }
+    }
+    
+    // No rule applied - let VSCode handle it with default behavior
+    return vscode.commands.executeCommand('default:type', args);
+  });
+
   const disposable = vscode.languages.registerOnTypeFormattingEditProvider(
-    { language: 'r', scheme: 'file' },
+    [
+      { language: 'r', scheme: 'file' },
+      { language: 'r', scheme: 'untitled' },
+      { pattern: '**/*.{r,R}' }
+    ],
     {
       provideOnTypeFormattingEdits(
         document: vscode.TextDocument,
@@ -13,95 +124,23 @@ export function activate(context: vscode.ExtensionContext): void {
       ): vscode.TextEdit[] {
         const edits: vscode.TextEdit[] = [];
 
-        const currentLine = document.lineAt(position.line);
-        const currentText = currentLine.text;
-
-        // Align continuation lines when pressing Enter
-        if (ch === '\n') {
-          const prevLineIndex = Math.max(0, position.line - 1);
-          const prevText = document.lineAt(prevLineIndex).text;
-          const codePart = extractCodePart(prevText);
-
-          const cfg = getConfig();
-
-          // 1) Pipe continuation: magrittr %>% (and variants) or base R |>
-          if (/\%[^%]*\>%\s*$/.test(codePart) || /\|>\s*$/.test(codePart)) {
-            let targetIndent = prevText.match(/^\s*/)?.[0] ?? '';
-            if (cfg.afterPipe === 'indentOneUnit') {
-              const unit = continuationIndent(options);
-              targetIndent = targetIndent + unit.repeat(Math.max(0, cfg.pipeIndentUnits));
-            } else if (cfg.afterPipe === 'alignToNextToken') {
-              // keep same indent; caller may type next token
-            } else if (cfg.afterPipe === 'none') {
-              // no change
-            }
-
-            const currentIndent = currentText.match(/^\s*/)?.[0] ?? '';
-            if (currentIndent !== targetIndent) {
-              const range = new vscode.Range(
-                new vscode.Position(position.line, 0),
-                new vscode.Position(position.line, currentIndent.length)
-              );
-              edits.push(vscode.TextEdit.replace(range, targetIndent));
-            }
-            return edits;
-          }
-
-          // 2) Function-call alignment (only when splitting an argument): align under first argument
-          const match = cfg.enableParenAlign ? findUnmatchedOpeningParen(document, prevLineIndex) : null;
-          const endsWithComma = /,\s*$/.test(codePart);
-          if (match && endsWithComma && (!cfg.parenAlignOnlyAfterComma || endsWithComma)) {
-            const { line: openLineIndex, column: openColIndex } = match;
-            const openLineText = document.lineAt(openLineIndex).text;
-
-            const baseIndent = openLineText.match(/^\s*/)?.[0] ?? '';
-            const desiredColumn = computeFirstArgColumn(openLineText, openColIndex);
-
-            // Preserve base indent characters; add continuation indent sized to reach desired column
-            const baseIndentLength = baseIndent.length;
-            const extraColumns = Math.max(0, desiredColumn - baseIndentLength);
-            const extra = options.insertSpaces
-              ? ' '.repeat(extraColumns)
-              : '\t'.repeat(Math.max(1, Math.ceil(extraColumns / Math.max(1, options.tabSize))))
-            ;
-            const targetIndent = baseIndent + extra;
-
-            const currentIndent = currentText.match(/^\s*/)?.[0] ?? '';
-            if (currentIndent !== targetIndent) {
-              const range = new vscode.Range(
-                new vscode.Position(position.line, 0),
-                new vscode.Position(position.line, currentIndent.length)
-              );
-              edits.push(vscode.TextEdit.replace(range, targetIndent));
-            }
-            return edits;
-          }
-        }
-
-        // Simple dedent when typing a closing brace/parens/bracket
+        // Use the new indentation engine for closing brackets
         if (/[\}\)\]]/.test(ch)) {
-          const openingPairs: Record<string, string> = { '}': '{', ')': '(', ']': '[' };
-          const opening = openingPairs[ch];
-          let balance = 0;
-          for (let i = position.line; i >= 0; i -= 1) {
-            const lineText = document.lineAt(i).text;
-            for (let j = lineText.length - 1; j >= 0; j -= 1) {
-              const c = lineText[j];
-              if (c === ch) balance += 1;
-              if (c === opening) balance -= 1;
-              if (balance < 0) {
-                const matchIndent = lineText.match(/^\s*/);
-                const targetIndent = matchIndent ? matchIndent[0] : '';
-                const currentIndent = currentText.match(/^\s*/)?.[0] ?? '';
-                if (targetIndent.length < currentIndent.length) {
-                  const range = new vscode.Range(
-                    new vscode.Position(position.line, 0),
-                    new vscode.Position(position.line, currentIndent.length)
-                  );
-                  edits.push(vscode.TextEdit.replace(range, targetIndent));
-                }
-                return edits;
-              }
+          const targetIndent = indentationEngine.calculateTypeIndentation(document, position, ch);
+          
+          if (targetIndent !== null) {
+            const currentLine = document.lineAt(position.line);
+            const currentIndent = currentLine.text.match(/^\s*/)?.[0] ?? '';
+            
+            if (targetIndent.length !== currentIndent.length) {
+              const range = new vscode.Range(
+                new vscode.Position(position.line, 0),
+                new vscode.Position(position.line, currentIndent.length)
+              );
+              edits.push(vscode.TextEdit.replace(range, targetIndent));
+              
+              // Note: OnType formatting doesn't track which rule was applied
+              DebugLogger.log(`Line ${position.line}: Closing bracket '${ch}' formatted`);
             }
           }
         }
@@ -109,132 +148,14 @@ export function activate(context: vscode.ExtensionContext): void {
         return edits;
       },
     },
-    '}', ')', ']', '\n'
+    '}', ')', ']'
   );
 
-  context.subscriptions.push(disposable);
+  context.subscriptions.push(disposable, typeHandler);
 }
 
 export function deactivate(): void {
-  // no-op
-}
-
-function continuationIndent(options: vscode.FormattingOptions): string {
-  if (options.insertSpaces) return ' '.repeat(Math.max(1, options.tabSize));
-  return '\t';
-}
-
-type Config = {
-  afterPipe: 'indentOneUnit' | 'alignToNextToken' | 'none';
-  pipeIndentUnits: number;
-  enableParenAlign: boolean;
-  parenAlignOnlyAfterComma: boolean;
-};
-
-function getConfig(): Config {
-  const c = vscode.workspace.getConfiguration('rIndent');
-  return {
-    afterPipe: c.get('afterPipe', 'indentOneUnit'),
-    pipeIndentUnits: c.get('pipeIndentUnits', 1),
-    enableParenAlign: c.get('enableParenAlign', true),
-    parenAlignOnlyAfterComma: c.get('parenAlignOnlyAfterComma', true),
-  };
-}
-
-// Determine the alignment column for lines inside parentheses.
-// Prefer the start column of the first argument following '(' on the same line; if none, use one char after '('.
-function computeFirstArgColumn(lineText: string, openParenCol: number): number {
-  // Respect comments; stop scanning at first # outside quotes
-  let inSingle = false;
-  let inDouble = false;
-  let stopAt = lineText.length;
-  for (let i = 0; i < lineText.length; i += 1) {
-    const c = lineText[i];
-    const prev = i > 0 ? lineText[i - 1] : '';
-    if (!inDouble && c === "'" && prev !== '\\') inSingle = !inSingle;
-    else if (!inSingle && c === '"' && prev !== '\\') inDouble = !inDouble;
-    else if (!inSingle && !inDouble && c === '#') { stopAt = i; break; }
-  }
-
-  // Find first non-whitespace token after '('
-  for (let i = openParenCol + 1; i < stopAt; i += 1) {
-    const c = lineText[i];
-    if (c === ' ' || c === '\t') continue;
-    // If we immediately see a closing paren, fall back to just after '('
-    if (c === ')') return openParenCol + 1;
-    return i; // column where first argument begins
-  }
-  return openParenCol + 1;
-}
-
-function extractCodePart(line: string): string {
-  let inSingle = false;
-  let inDouble = false;
-  for (let i = 0; i < line.length; i += 1) {
-    const c = line[i];
-    const prev = i > 0 ? line[i - 1] : '';
-    if (!inDouble && c === "'" && prev !== '\\') inSingle = !inSingle;
-    else if (!inSingle && c === '"' && prev !== '\\') inDouble = !inDouble;
-    else if (!inSingle && !inDouble && c === '#') return line.slice(0, i);
-  }
-  return line;
-}
-
-function findUnmatchedOpeningParen(
-  document: vscode.TextDocument,
-  startLineIndex: number
-): { line: number; column: number } | null {
-  let depth = 0; // counts ')' seen minus '(' seen when scanning left-to-right
-
-  for (let i = startLineIndex; i >= 0; i -= 1) {
-    const rawLine = document.lineAt(i).text;
-
-    // Process the line left-to-right to respect quotes and comments
-    let inSingle = false;
-    let inDouble = false;
-    const positions: { ch: '(' | ')'; col: number }[] = [];
-
-    const stopAt = (() => {
-      // stop at first unescaped '#' when not in quotes
-      for (let idx = 0; idx < rawLine.length; idx += 1) {
-        const c = rawLine[idx];
-        const prev = idx > 0 ? rawLine[idx - 1] : '';
-        if (!inSingle && !inDouble && c === '#') return idx; // comment begins
-        if (c === "'" && !inDouble && prev !== '\\') inSingle = !inSingle;
-        else if (c === '"' && !inSingle && prev !== '\\') inDouble = !inDouble;
-      }
-      // if no comment, entire line participates
-      return rawLine.length;
-    })();
-
-    inSingle = false;
-    inDouble = false;
-    for (let col = 0; col < stopAt; col += 1) {
-      const c = rawLine[col];
-      const prev = col > 0 ? rawLine[col - 1] : '';
-      if (c === "'" && !inDouble && prev !== '\\') {
-        inSingle = !inSingle;
-        continue;
-      }
-      if (c === '"' && !inSingle && prev !== '\\') {
-        inDouble = !inDouble;
-        continue;
-      }
-      if (inSingle || inDouble) continue;
-      if (c === '(') positions.push({ ch: '(', col });
-      else if (c === ')') positions.push({ ch: ')', col });
-    }
-
-    for (let k = positions.length - 1; k >= 0; k -= 1) {
-      const p = positions[k];
-      if (p.ch === ')') depth += 1;
-      else if (p.ch === '(') {
-        if (depth === 0) return { line: i, column: p.col };
-        depth -= 1;
-      }
-    }
-  }
-  return null;
+  // Clean up resources if needed
 }
 
 

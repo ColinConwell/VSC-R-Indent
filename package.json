@@ -8,7 +8,7 @@
   "scripts": {
     "compile": "tsc -p .",
     "watch": "tsc -w -p .",
-    "build:vsix": "bash ./scripts/build-vsix.sh",
+    "build:vsix": "npm run compile && npx --yes @vscode/vsce package --no-dependencies --out vsc-r-indent.vsix",
     "vscode:prepublish": "npm run compile",
     "install:local": "bash ./scripts/install-local.sh",
     "install:cursor": "bash ./scripts/install-local.sh --cursor"
@@ -31,44 +31,63 @@
     "onLanguage:r"
   ],
   "contributes": {
-    "languages": [
+
+    "keybindings": [
       {
-        "id": "r",
-        "aliases": [
-          "R",
-          "r"
-        ],
-        "extensions": [
-          ".r",
-          ".R"
-        ],
-        "configuration": "./language-configuration.json"
+        "command": "type",
+        "key": "enter",
+        "when": "textInputFocus && editorLangId == 'r' && !editorReadonly && !suggestWidgetVisible",
+        "args": { "text": "\n" }
       }
     ],
     "configuration": {
       "title": "R Indent",
       "properties": {
-        "rIndent.afterPipe": {
-          "type": "string",
-          "enum": ["indentOneUnit", "alignToNextToken", "none"],
-          "default": "indentOneUnit",
-          "description": "Behavior when pressing Enter after a pipe (%>%, |> )."
+        "rIndent.enablePipeAlignment": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable alignment for pipe operators (%>%, |>)"
         },
-        "rIndent.pipeIndentUnits": {
+        "rIndent.pipeIndentSize": {
           "type": "number",
-          "default": 1,
-          "minimum": 0,
-          "description": "How many indentation units to apply after a pipe when using indentOneUnit."
+          "default": 2,
+          "description": "Number of spaces to indent after pipe operators"
         },
-        "rIndent.enableParenAlign": {
+        "rIndent.alignFunctionArguments": {
           "type": "boolean",
           "default": true,
-          "description": "Align new lines inside parentheses to one char after the matching '('."
+          "description": "Align function arguments to opening parenthesis"
         },
-        "rIndent.parenAlignOnlyAfterComma": {
+        "rIndent.bracketAlignment": {
+          "type": "string",
+          "enum": ["afterBracket", "standardIndent"],
+          "default": "afterBracket",
+          "description": "How to align content after opening brackets"
+        },
+        "rIndent.rstudioCompatibility": {
           "type": "boolean",
           "default": true,
-          "description": "Only apply paren alignment when the previous code ends with a comma."
+          "description": "Enable RStudio compatibility mode"
+        },
+        "rIndent.enableDebugLogging": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable debug logging for development"
+        },
+        "rIndent.trimWhitespaceLines": {
+          "type": "boolean",
+          "default": false,
+          "description": "Trim lines containing only whitespace"
+        },
+        "rIndent.useTabOnHangingIndent": {
+          "type": "boolean",
+          "default": false,
+          "description": "Use tab character for hanging indents"
+        },
+        "rIndent.keepHangingBracketOnLine": {
+          "type": "boolean",
+          "default": false,
+          "description": "Keep closing bracket on same line as last argument"
         }
       }
     }
