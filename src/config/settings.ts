@@ -23,15 +23,10 @@ export class ConfigurationManager {
     const config = vscode.workspace.getConfiguration('rIndent');
     
     return {
-      enablePipeAlignment: config.get('enablePipeAlignment', DEFAULT_CONFIG.enablePipeAlignment),
-      pipeIndentSize: config.get('pipeIndentSize', DEFAULT_CONFIG.pipeIndentSize),
+      // Support backward compatibility with pipeIndentSize
+      indentSize: config.get('indentSize', config.get('pipeIndentSize', DEFAULT_CONFIG.indentSize)),
       alignFunctionArguments: config.get('alignFunctionArguments', DEFAULT_CONFIG.alignFunctionArguments),
-      bracketAlignment: config.get('bracketAlignment', DEFAULT_CONFIG.bracketAlignment),
-      rstudioCompatibility: config.get('rstudioCompatibility', DEFAULT_CONFIG.rstudioCompatibility),
       enableDebugLogging: config.get('enableDebugLogging', DEFAULT_CONFIG.enableDebugLogging),
-      trimWhitespaceLines: config.get('trimWhitespaceLines', DEFAULT_CONFIG.trimWhitespaceLines),
-      useTabOnHangingIndent: config.get('useTabOnHangingIndent', DEFAULT_CONFIG.useTabOnHangingIndent),
-      keepHangingBracketOnLine: config.get('keepHangingBracketOnLine', DEFAULT_CONFIG.keepHangingBracketOnLine),
     };
   }
   

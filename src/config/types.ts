@@ -3,32 +3,14 @@
  */
 
 export interface RIndentConfig {
-  /** Enable/disable pipe operator alignment */
-  enablePipeAlignment: boolean;
-  
-  /** Number of spaces to indent after pipe operators */
-  pipeIndentSize: number;
+  /** Number of spaces for base indentation (operator chains, brackets, etc.) */
+  indentSize: number;
   
   /** Align function arguments to opening parenthesis */
   alignFunctionArguments: boolean;
   
-  /** How to align content after opening brackets */
-  bracketAlignment: 'afterBracket' | 'standardIndent';
-  
-  /** Enable RStudio compatibility mode */
-  rstudioCompatibility: boolean;
-  
   /** Enable debug logging for development */
   enableDebugLogging: boolean;
-  
-  /** Trim lines containing only whitespace */
-  trimWhitespaceLines: boolean;
-  
-  /** Use tab character for hanging indents */
-  useTabOnHangingIndent: boolean;
-  
-  /** Keep closing bracket on same line as last argument */
-  keepHangingBracketOnLine: boolean;
 }
 
 export interface IndentationContext {

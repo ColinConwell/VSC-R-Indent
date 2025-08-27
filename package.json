@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "description": "On-type indentation adjustments for R",
   "displayName": "R Indent",
+  "icon": "R-Indent.png",
   "main": "./out/extension.js",
   "publisher": "ColinConwell",
   "scripts": {
@@ -20,7 +21,6 @@
   "keywords": [],
   "author": "developer@dev.com",
   "license": "MIT",
-  "type": "module",
   "categories": [
     "Formatters"
   ],
@@ -43,51 +43,21 @@
     "configuration": {
       "title": "R Indent",
       "properties": {
-        "rIndent.enablePipeAlignment": {
-          "type": "boolean",
-          "default": true,
-          "description": "Enable alignment for pipe operators (%>%, |>)"
-        },
-        "rIndent.pipeIndentSize": {
+
+        "rIndent.indentSize": {
           "type": "number",
           "default": 2,
-          "description": "Number of spaces to indent after pipe operators"
+          "description": "Number of spaces for base indentation (operator chains, brackets, etc.)"
         },
         "rIndent.alignFunctionArguments": {
           "type": "boolean",
           "default": true,
           "description": "Align function arguments to opening parenthesis"
         },
-        "rIndent.bracketAlignment": {
-          "type": "string",
-          "enum": ["afterBracket", "standardIndent"],
-          "default": "afterBracket",
-          "description": "How to align content after opening brackets"
-        },
-        "rIndent.rstudioCompatibility": {
-          "type": "boolean",
-          "default": true,
-          "description": "Enable RStudio compatibility mode"
-        },
         "rIndent.enableDebugLogging": {
           "type": "boolean",
-          "default": true,
+          "default": false,
           "description": "Enable debug logging for development"
-        },
-        "rIndent.trimWhitespaceLines": {
-          "type": "boolean",
-          "default": false,
-          "description": "Trim lines containing only whitespace"
-        },
-        "rIndent.useTabOnHangingIndent": {
-          "type": "boolean",
-          "default": false,
-          "description": "Use tab character for hanging indents"
-        },
-        "rIndent.keepHangingBracketOnLine": {
-          "type": "boolean",
-          "default": false,
-          "description": "Keep closing bracket on same line as last argument"
         }
       }
     }

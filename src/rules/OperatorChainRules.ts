@@ -97,7 +97,7 @@ export class OperatorChainRule extends BaseRule {
     const baseLineNumber = this.findChainBaseIndent(document, operatorLineNumber, position);
     const baseLine = document.lineAt(baseLineNumber);
     const baseIndent = baseLine.text.match(/^\s*/)?.[0] ?? '';
-    const operatorIndent = this.createIndent(config.pipeIndentSize);
+    const operatorIndent = this.createIndent(config.indentSize);
     
     if (config.enableDebugLogging) {
       console.log(`[OperatorChain] Base line ${baseLineNumber}: "${baseLine.text.trim()}" -> base indent: ${baseIndent.length} + operator indent: ${operatorIndent.length} = ${baseIndent.length + operatorIndent.length} spaces`);
