@@ -1,9 +1,11 @@
 if (!require(pacman)) {install.packages("pacman")}
 pacman::p_load('skimr', 'tidyverse')
 
-strtoi("5", 
-       base = 
-         10L)
+strtoi("5", base = 10L)
+
+         
+c(1, 2,
+  3, 4)
 
 6 +
   7 +

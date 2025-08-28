@@ -4,7 +4,10 @@ Intelligent auto-indentation for R that emulates RStudio's indentation behavior 
 
 ## Features
 
-### **RStudio-Style Operator Chain Indentation**
+### **RStudio-Style Bracket Alignment**
+- Newlines wrap to the indentation of the opening bracket
+
+### **RStudio-Style Chain Indentation**
 - Pipe operators (`%>%`, `|>`) with 2-space continuation indentation
 - Arithmetic operators (`+`, `-`, `*`, `/`) for ggplot and calculations
 - Assignment operators (`<-`, `=`, `->`) with proper alignment

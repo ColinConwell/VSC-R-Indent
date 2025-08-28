@@ -5,6 +5,28 @@ import { DebugLogger } from './utils/debugUtils.js';
 let indentationEngine: IndentationEngine;
 
 /**
+ * Check if this is an empty bracket case where VSCode should handle formatting
+ */
+function isEmptyBracketCase(document: vscode.TextDocument, position: vscode.Position): boolean {
+  const line = document.lineAt(position.line);
+  const lineText = line.text;
+  
+  // Check if cursor is immediately after an opening bracket
+  if (position.character > 0) {
+    const charBefore = lineText[position.character - 1];
+    if (/[([{]/.test(charBefore)) {
+      // Check if there's a corresponding closing bracket nearby (with only whitespace between)
+      const remainingText = lineText.substring(position.character).trim();
+      if (remainingText.match(/^[)\]}]/)) {
+        return true; // Empty bracket pattern: func(|)
+      }
+    }
+  }
+  
+  return false;
+}
+
+/**
  * Check if we should bypass VSCode's default indentation for completed chains
  */
 function shouldBypassDefaultIndentation(
@@ -14,26 +36,28 @@ function shouldBypassDefaultIndentation(
   const currentLine = document.lineAt(position.line);
   const currentLineText = currentLine.text.trim();
   
-  // Only bypass if current line has content (meaning it's a completed statement)
-  if (currentLineText.length > 0) {
-    // Check for completed pipe chains
-    if (position.line > 0) {
-      const prevLine = document.lineAt(position.line - 1);
-      const prevLineText = prevLine.text.trim();
-      
-      // Previous line ends with operator but current line doesn't contain operators = completed chain
-      const prevHasOperator = /(%>%|\|>|\+|-|\*|\/|=|<-|->)\s*$/.test(prevLineText);
-      const currentHasOperator = /(%>%|\|>|\+|-|\*|\/|=|<-|->)/.test(currentLineText);
-      
-      if (prevHasOperator && !currentHasOperator) {
-        return true;
-      }
-    }
+  // Check if we're after a completed expression/statement
+  if (position.line > 0) {
+    const prevLine = document.lineAt(position.line - 1);
+    const prevLineText = prevLine.text.trim();
     
-    // Check for completed bracket expressions (line ends with closing bracket/parenthesis)
-    if (/[)\]}]\s*$/.test(currentLineText)) {
+    // Previous line ends with closing bracket/parenthesis = completed function/expression
+    if (/[)\]}]\s*$/.test(prevLineText)) {
       return true;
     }
+    
+    // Previous line ends with operator but current line doesn't contain operators = completed chain
+    const prevHasOperator = /(%>%|\|>|\+|-|\*|\/|=|<-|->)\s*$/.test(prevLineText);
+    const currentHasOperator = /(%>%|\|>|\+|-|\*|\/|=|<-|->)/.test(currentLineText);
+    
+    if (prevHasOperator && !currentHasOperator && currentLineText.length > 0) {
+      return true;
+    }
+  }
+  
+  // Current line ends with closing bracket/parenthesis = completed expression
+  if (currentLineText.length > 0 && /[)\]}]\s*$/.test(currentLineText)) {
+    return true;
   }
   
   return false;
@@ -68,7 +92,10 @@ export function activate(context: vscode.ExtensionContext): void {
     const cursor = editor.selection.active;
     const lineText = document.lineAt(cursor.line).text;
     
-
+    // Check for empty bracket case - let VSCode handle it completely
+    if (isEmptyBracketCase(document, cursor)) {
+      return vscode.commands.executeCommand('default:type', args);
+    }
     
     // Use the new indentation engine
     const targetIndent = indentationEngine.calculateEnterIndentation(document, cursor);

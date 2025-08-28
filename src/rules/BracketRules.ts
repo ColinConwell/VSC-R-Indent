@@ -23,6 +23,14 @@ export class BracketAlignmentRule extends BaseRule {
     const document = editor.document;
     const position = new vscode.Position(context.line, context.column);
     
+    // Check if this is an empty bracket case - let VSCode handle it
+    if (this.isEmptyBracketCase(document, position)) {
+      if (config.enableDebugLogging) {
+        console.log(`[BracketAlignment] Line ${context.line}: Empty bracket case - deferring to VSCode`);
+      }
+      return false;
+    }
+    
     // Look left from cursor to find the nearest opening bracket
     const bracketResult = this.findNearestOpeningBracket(document, position);
     
@@ -51,16 +59,122 @@ export class BracketAlignmentRule extends BaseRule {
     const document = editor.document;
     const position = new vscode.Position(context.line, context.column);
     
+    // Special case: cursor before closing bracket - no additional indent (RStudio behavior)
+    if (this.isCursorBeforeClosingBracket(document, position)) {
+      const baseIndent = this.findBaseIndent(document, position);
+      return baseIndent; // Just the base indent, no additional spaces
+    }
+    
+    // Check if cursor is directly after opening bracket
+    const line = document.lineAt(position.line);
+    const lineText = line.text;
+    if (position.character > 0) {
+      const charBefore = lineText[position.character - 1];
+      if (/[([{]/.test(charBefore)) {
+        // Cursor after opening bracket - use default indent
+        const baseIndent = this.findBaseIndent(document, position);
+        return baseIndent + ' '.repeat(config.indentSize);
+      }
+    }
+    
     // Find the nearest opening bracket to the left of cursor
     const bracketResult = this.findNearestOpeningBracket(document, position);
     if (!bracketResult) {
       return null;
     }
     
-    // Align to column after the bracket
+    // Fall back to aligning after the bracket
     const targetColumn = bracketResult.column + 1;
-    
     return ' '.repeat(targetColumn);
+  }
+  
+  /**
+   * Check if cursor is directly before or after a bracket/parenthesis
+   */
+  private isCursorAdjacentToBracket(document: vscode.TextDocument, position: vscode.Position): boolean {
+    const line = document.lineAt(position.line);
+    const lineText = line.text;
+    
+    // Check character directly before cursor
+    if (position.character > 0) {
+      const charBefore = lineText[position.character - 1];
+      if (/[([{]/.test(charBefore)) {
+        return true;
+      }
+    }
+    
+    // Check character directly after cursor
+    if (position.character < lineText.length) {
+      const charAfter = lineText[position.character];
+      if (/[)\]}]/.test(charAfter)) {
+        return true;
+      }
+    }
+    
+    return false;
+  }
+  
+  /**
+   * Check if cursor is directly before a closing bracket (special case)
+   */
+  private isCursorBeforeClosingBracket(document: vscode.TextDocument, position: vscode.Position): boolean {
+    const line = document.lineAt(position.line);
+    const lineText = line.text;
+    
+    if (position.character < lineText.length) {
+      const charAfter = lineText[position.character];
+      return /[)\]}]/.test(charAfter);
+    }
+    
+    return false;
+  }
+  
+  /**
+   * Check if this is an empty bracket case where VSCode should handle formatting
+   * Example: strtoi(|) where cursor is right after opening bracket with closing bracket following
+   */
+  private isEmptyBracketCase(document: vscode.TextDocument, position: vscode.Position): boolean {
+    const line = document.lineAt(position.line);
+    const lineText = line.text;
+    
+    // Check if cursor is immediately after an opening bracket
+    if (position.character > 0) {
+      const charBefore = lineText[position.character - 1];
+      if (/[([{]/.test(charBefore)) {
+        // Check if there's a corresponding closing bracket nearby (with only whitespace between)
+        const remainingText = lineText.substring(position.character).trim();
+        if (remainingText.match(/^[)\]}]/)) {
+          return true; // Empty bracket pattern: func(|)
+        }
+      }
+    }
+    
+    return false;
+  }
+  
+  /**
+   * Find the base indentation of the line containing the bracket
+   */
+  private findBaseIndent(document: vscode.TextDocument, position: vscode.Position): string {
+    // Look backwards to find a line with a bracket or the start of the expression
+    for (let lineNum = position.line; lineNum >= 0; lineNum--) {
+      const line = document.lineAt(lineNum);
+      const lineText = line.text;
+      
+      // If this line contains an opening bracket, use its indentation
+      if (/[([{]/.test(lineText)) {
+        const indent = lineText.match(/^(\s*)/)?.[1] || '';
+        return indent;
+      }
+      
+      // Stop at empty lines or start of file
+      if (lineText.trim().length === 0 && lineNum < position.line) {
+        break;
+      }
+    }
+    
+    // Default to no base indent
+    return '';
   }
   
   /**
