@@ -2,7 +2,6 @@ if (!require(pacman)) {install.packages("pacman")}
 pacman::p_load('skimr', 'tidyverse')
 
 strtoi("5", base = 10L)
-
          
 c(1, 2,
   3, 4)
@@ -12,7 +11,8 @@ c(1, 2,
   8 *
   9 *
   4 /
-  4
+  4 /
+  5
 
 ggplot(mtcars, aes(disp, mpg)) +
   geom_point() +
@@ -24,9 +24,15 @@ ggplot(mtcars, aes(disp, mpg)) +
 data(mtcars) %>%
   skim() %>%
   kable()
-    
-    
 
-    
-    
+strtoi("5", base = 10L)
 
+ggplot(mtcars, aes(disp, mpg)) +
+  geom_point() +
+  coord_radial(start = -0.4 * pi, 
+               end = 0.4 * pi, 
+               inner.radius = 0.3) +
+  # increase space between axis and plot border
+  theme(text = element_text(size=12, family='sans'),
+        panel.grid.minor = element_blank(),
+        panel.border = element_rect(fill='transparent'))

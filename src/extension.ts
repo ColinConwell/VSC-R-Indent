@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { IndentationEngine } from './indentation/indentationEngine.js';
 import { DebugLogger } from './utils/debugUtils.js';
+import { ConfigurationManager } from './config/settings.js';
 
 let indentationEngine: IndentationEngine;
 
@@ -11,15 +12,15 @@ function isEmptyBracketCase(document: vscode.TextDocument, position: vscode.Posi
   const line = document.lineAt(position.line);
   const lineText = line.text;
   
-  // Check if cursor is immediately after an opening bracket
+  // Only consider truly empty brackets: opening bracket immediately followed by closing bracket
+  // Pattern: func(|) where cursor is between empty brackets
   if (position.character > 0) {
     const charBefore = lineText[position.character - 1];
-    if (/[([{]/.test(charBefore)) {
-      // Check if there's a corresponding closing bracket nearby (with only whitespace between)
-      const remainingText = lineText.substring(position.character).trim();
-      if (remainingText.match(/^[)\]}]/)) {
-        return true; // Empty bracket pattern: func(|)
-      }
+    const charAfter = position.character < lineText.length ? lineText[position.character] : '';
+    
+    // Check for immediate empty bracket patterns: (|), [|], {|}
+    if (/[([{]/.test(charBefore) && /[)\]}]/.test(charAfter)) {
+      return true;
     }
   }
   
@@ -66,8 +67,12 @@ function shouldBypassDefaultIndentation(
 
 
 export function activate(context: vscode.ExtensionContext): void {
-  // Initialize the indentation engine
+  // Initialize the indentation engine and debug logger
   indentationEngine = new IndentationEngine();
+  DebugLogger.initialize();
+  
+  // Log activation to ensure extension is working
+  DebugLogger.logDebug('R Indent extension activated');
   
 
   
@@ -96,6 +101,8 @@ export function activate(context: vscode.ExtensionContext): void {
     if (isEmptyBracketCase(document, cursor)) {
       return vscode.commands.executeCommand('default:type', args);
     }
+    
+    DebugLogger.logDebug(`Processing Enter at line ${cursor.line}, col ${cursor.character}`);
     
     // Use the new indentation engine
     const targetIndent = indentationEngine.calculateEnterIndentation(document, cursor);
@@ -181,7 +188,8 @@ export function activate(context: vscode.ExtensionContext): void {
 }
 
 export function deactivate(): void {
-  // Clean up resources if needed
+  // Clean up resources
+  DebugLogger.dispose();
 }
 
 

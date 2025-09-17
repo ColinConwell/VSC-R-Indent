@@ -56,7 +56,7 @@
         },
         "rIndent.enableDebugLogging": {
           "type": "boolean",
-          "default": false,
+          "default": true,
           "description": "Enable debug logging for development"
         }
       }
