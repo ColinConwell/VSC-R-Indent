@@ -374,6 +374,16 @@ export class OperatorChainRule extends BaseRule {
         break;
       }
       
+      // Skip comment-only lines (they don't break operator chains)
+      const lineWithoutComments = lineTextToCheck.replace(/#.*$/, '').trim();
+      if (lineWithoutComments.length === 0) {
+        if (config.enableDebugLogging) {
+          console.log(`[OperatorChain] Skipping comment-only line ${currentLine}: "${lineTextToCheck}"`);
+        }
+        currentLine--;
+        continue;
+      }
+      
       // Check for chain boundaries
       if (this.isChainBoundary(line.text)) {
         if (config.enableDebugLogging) {
@@ -383,7 +393,7 @@ export class OperatorChainRule extends BaseRule {
       }
       
       // Check if this line ends with an operator
-      if (this.endsWithOperator(lineTextToCheck)) {
+      if (this.endsWithOperator(lineWithoutComments)) {
         // This is part of the chain - update the first operator line
         firstOperatorLine = currentLine;
         if (config.enableDebugLogging) {
