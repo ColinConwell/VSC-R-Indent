@@ -125,29 +125,28 @@ npm run watch           # Watch for changes
 ```
 src/
 ├── config/                    # Configuration management
-│   ├── defaults.ts           # Default configuration values
-│   ├── settings.ts           # VSCode settings integration
-│   └── types.ts              # Type definitions
+│   ├── defaults.ts            # Default configuration values
+│   ├── settings.ts            # VSCode settings integration
+│   └── types.ts               # Type definitions
 ├── indentation/               # Core indentation engine
-│   ├── indentationEngine.ts  # Main engine with proximity-based rules
-│   └── rParser.ts            # R syntax parsing utilities
+│   ├── indentationEngine.ts   # Main engine with proximity-based rules
+│   └── rParser.ts             # R syntax parsing utilities
 ├── rules/                     # Indentation rules (priority-based)
-│   ├── BaseRule.ts           # Abstract base class for all rules
-│   ├── OperatorChainRules.ts # Operator chains (priority 120)
-│   ├── ParameterRules.ts     # Parameter assignments (priority 110)
-│   └── BracketRules.ts       # Bracket alignment & closing rules (100-80)
+│   ├── BaseRule.ts            # Abstract base class for all rules
+│   ├── OperatorChainRules.ts  # Operator chains (priority 120)
+│   ├── ParameterRules.ts      # Parameter assignments (priority 110)
+│   └── BracketRules.ts        # Bracket alignment & closing rules (100-80)
 ├── utils/                     # Debug utilities
-│   └── debugUtils.ts         # Structured debug logging
+│   └── debugUtils.ts          # Structured debug logging
 └── extension.ts               # Main extension entry point
 
 tests/
-├── unit/                      # Unit test framework
+├── unit/                     # Unit test framework
 │   ├── testFramework.ts      # Testing utilities
 │   ├── bracketTests.ts       # Bracket alignment tests
 │   └── pipeTests.ts          # Operator chain tests
-├── indent_test.R             # Main test file
-├── comprehensive_test.R      # Extended test scenarios
-└── new_features_test.R       # Recent feature tests
+├── manual_indent_test.R      # Main test file
+└── comprehensive_test.R      # Extended test scenarios
 ```
 
 ## Architecture
