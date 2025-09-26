@@ -32,13 +32,23 @@ export class DebugLogger {
   }
 
   /**
-   * Log a message to the output channel if debug logging is enabled
+   * Log a message to the output channel if debug logging is enabled (with timestamp)
    */
-  private static log(message: string): void {
+  private static logWithTimestamp(message: string): void {
     const config = this.configManager.getConfig();
     if (config.enableDebugLogging && this.outputChannel) {
       const timestamp = new Date().toLocaleTimeString();
       this.outputChannel.appendLine(`[${timestamp}] ${message}`);
+    }
+  }
+  
+  /**
+   * Log a message to the output channel if debug logging is enabled (without timestamp)
+   */
+  public static log(message: string): void {
+    const config = this.configManager.getConfig();
+    if (config.enableDebugLogging && this.outputChannel) {
+      this.outputChannel.appendLine(message);
     }
   }
 
@@ -46,32 +56,25 @@ export class DebugLogger {
    * Log successful rule application
    */
   public static logRuleSuccess(ruleName: string, lineNumber: number, indentSize: number): void {
-    this.log(`${ruleName}: Line ${lineNumber} → ${indentSize} spaces`);
+    this.logWithTimestamp(`${ruleName}: Line ${lineNumber} → ${indentSize} spaces`);
   }
 
   /**
    * Log when no rules apply (fallback to VSCode)
    */
   public static logNoRuleApplied(lineNumber: number): void {
-    this.log(`No rule applied: Line ${lineNumber} → VSCode default`);
+    this.logWithTimestamp(`No rule applied: Line ${lineNumber} → VSCode default`);
   }
 
   /**
    * Log when VSCode default is bypassed
    */
   public static logBypassDefault(lineNumber: number): void {
-    this.log(`Bypassed default: Line ${lineNumber} → No indent`);
+    this.logWithTimestamp(`Bypassed default: Line ${lineNumber} → No indent`);
   }
-
+  
   /**
-   * Log general debug information
-   */
-  public static logDebug(message: string): void {
-    this.log(`DEBUG: ${message}`);
-  }
-
-  /**
-   * Log rule application attempts
+   * Log rule application attempts (legacy - not used in new 2-level system)
    */
   public static logRuleCheck(ruleName: string, lineNumber: number, applies: boolean): void {
     this.log(`${ruleName}: Line ${lineNumber} → ${applies ? 'APPLIES' : 'SKIPPED'}`);

@@ -25,7 +25,11 @@ data(mtcars) %>%
   skim() %>%
   kable()
 
-strtoi("5", base = 10L)
+strtoi("5", 
+       base=
+         10L, 
+       ok=
+         TRUE)
 
 ggplot(mtcars, aes(disp, mpg)) +
   geom_point() +

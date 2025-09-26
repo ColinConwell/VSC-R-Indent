@@ -6,6 +6,7 @@ import * as vscode from 'vscode';
 import { BaseRule } from './BaseRule.js';
 import { IndentationContext, RIndentConfig } from '../config/types.js';
 import { ConfigurationManager } from '../config/settings.js';
+import { DebugLogger } from '../utils/debugUtils.js';
 
 export class OperatorChainRule extends BaseRule {
   constructor() {
@@ -22,11 +23,8 @@ export class OperatorChainRule extends BaseRule {
     const position = new vscode.Position(context.line, context.column);
     
     // First check: Are we inside parentheses/brackets? 
-    // Only defer to BracketAlignment if it's NOT a parameter assignment
-    if (this.isInsideParentheses(document, position) && !this.isParameterAssignment(document, position)) {
-      if (config.enableDebugLogging) {
-        console.log(`[OperatorChain] Line ${position.line}: Inside parentheses (non-parameter), deferring to BracketAlignment`);
-      }
+    // Defer to BracketAlignment and ParameterAssignment rules for bracket contexts
+    if (this.isInsideParentheses(document, position)) {
       return false;
     }
     
@@ -52,9 +50,6 @@ export class OperatorChainRule extends BaseRule {
     // 2. Previous line ends with operator AND current line doesn't complete the chain
     const result = isTopLevelOperator || (prevLineEndsWithOp && this.isChainContinuation(currentLineTextUpToCursor));
     
-    if (config.enableDebugLogging) {
-      console.log(`[OperatorChain] Line ${position.line}: Current ends with op: ${currentLineEndsWithOp}, is top-level: ${isTopLevelOperator}, Prev ends with op: ${prevLineEndsWithOp}, Result: ${result}`);
-    }
     
     return result;
   }
@@ -66,10 +61,6 @@ export class OperatorChainRule extends BaseRule {
     const document = editor.document;
     const position = new vscode.Position(context.line, context.column);
     
-    // Special handling for parameter assignments
-    if (this.isParameterAssignment(document, position)) {
-      return this.getParameterAssignmentIndent(document, position);
-    }
     
     // Check which line has the operator (same logic as applies method)
     const currentLine = document.lineAt(position.line);
@@ -99,9 +90,6 @@ export class OperatorChainRule extends BaseRule {
     const baseIndent = baseLine.text.match(/^\s*/)?.[0] ?? '';
     const operatorIndent = this.createIndent(config.indentSize);
     
-    if (config.enableDebugLogging) {
-      console.log(`[OperatorChain] Base line ${baseLineNumber}: "${baseLine.text.trim()}" -> base indent: ${baseIndent.length} + operator indent: ${operatorIndent.length} = ${baseIndent.length + operatorIndent.length} spaces`);
-    }
     
     return baseIndent + operatorIndent;
   }
@@ -207,20 +195,24 @@ export class OperatorChainRule extends BaseRule {
     let openCount = 0;
     let closeCount = 0;
     
-    // Check all characters from start of line up to cursor
-    const currentLine = document.lineAt(position.line);
-    const textUpToCursor = currentLine.text.substring(0, position.character);
-    
-    for (const char of textUpToCursor) {
-      if (char === '(' || char === '[' || char === '{') {
-        openCount++;
-      } else if (char === ')' || char === ']' || char === '}') {
-        closeCount++;
+    // Check all characters from start of document up to cursor position
+    for (let line = 0; line <= position.line; line++) {
+      const lineText = document.lineAt(line).text;
+      const endChar = line === position.line ? position.character : lineText.length;
+      const textToCheck = lineText.substring(0, endChar);
+      
+      for (const char of textToCheck) {
+        if (char === '(' || char === '[' || char === '{') {
+          openCount++;
+        } else if (char === ')' || char === ']' || char === '}') {
+          closeCount++;
+        }
       }
     }
     
     // If we have unmatched opening brackets, we're inside parentheses
-    return openCount > closeCount;
+    const inside = openCount > closeCount;
+    return inside;
   }
   
   /**
@@ -239,47 +231,15 @@ export class OperatorChainRule extends BaseRule {
       return !isInsideParens; // Top-level only when outside parentheses
     }
     
-    // Assignment operators are top-level if they're parameter assignments (handled separately)
-    return lineText.endsWith('=') || lineText.endsWith('<-') || lineText.endsWith('->');
-  }
-  
-  /**
-   * Check if we're in a parameter assignment context (like base = in function calls)
-   */
-  private isParameterAssignment(document: vscode.TextDocument, position: vscode.Position): boolean {
-    const currentLine = document.lineAt(position.line);
-    const textUpToCursor = currentLine.text.substring(0, position.character);
-    
-    // Check if we're inside parentheses AND the line ends with an assignment operator
-    if (!this.isInsideParentheses(document, position)) {
-      return false;
+    // Assignment operators are top-level only when NOT inside parentheses
+    if ((lineText.endsWith('=') || lineText.endsWith('<-') || lineText.endsWith('->')) && document && position) {
+      const isInsideParens = this.isInsideParentheses(document, position);
+      return !isInsideParens; // Top-level only when outside parentheses
     }
     
-    // Look for pattern: identifier = (parameter assignment)
-    const paramPattern = /\w+\s*=\s*$/;
-    return paramPattern.test(textUpToCursor);
+    return false;
   }
   
-  /**
-   * Get indentation for parameter assignments (aligns value with parameter name + space after =)
-   */
-  private getParameterAssignmentIndent(document: vscode.TextDocument, position: vscode.Position): string {
-    const currentLine = document.lineAt(position.line);
-    const textUpToCursor = currentLine.text.substring(0, position.character);
-    
-    // Find the start of the parameter name
-    const match = textUpToCursor.match(/(\s*)(\w+\s*=\s*)$/);
-    if (!match) {
-      // Fallback to standard indentation
-      return '  ';
-    }
-    
-    const [, leadingSpaces, parameterPart] = match;
-    const parameterStartIndent = leadingSpaces;
-    const spacesToAlignWithValue = ' '.repeat(parameterPart.length);
-    
-    return parameterStartIndent + spacesToAlignWithValue;
-  }
   
   /**
    * Check if current line represents a chain continuation (not completion)
@@ -343,9 +303,6 @@ export class OperatorChainRule extends BaseRule {
    */
   private findChainBaseIndent(document: vscode.TextDocument, fromLine: number, cursorPosition?: vscode.Position): number {
     const config = ConfigurationManager.getInstance().getConfig();
-    if (config.enableDebugLogging) {
-      console.log(`[OperatorChain] findChainBaseIndent starting from line ${fromLine}`);
-    }
     
     let currentLine = fromLine;
     let firstOperatorLine = fromLine; // Track the first line in the chain
@@ -362,33 +319,21 @@ export class OperatorChainRule extends BaseRule {
         lineTextToCheck = line.text.trim();
       }
       
-      if (config.enableDebugLogging) {
-        console.log(`[OperatorChain] Checking line ${currentLine}: "${lineTextToCheck}" - ends with operator: ${this.endsWithOperator(lineTextToCheck)}`);
-      }
       
       // If we encounter an empty line, stop here
       if (lineTextToCheck.length === 0) {
-        if (config.enableDebugLogging) {
-          console.log(`[OperatorChain] Hit empty line at ${currentLine}, chain starts at ${firstOperatorLine}`);
-        }
         break;
       }
       
       // Skip comment-only lines (they don't break operator chains)
       const lineWithoutComments = lineTextToCheck.replace(/#.*$/, '').trim();
       if (lineWithoutComments.length === 0) {
-        if (config.enableDebugLogging) {
-          console.log(`[OperatorChain] Skipping comment-only line ${currentLine}: "${lineTextToCheck}"`);
-        }
         currentLine--;
         continue;
       }
       
       // Check for chain boundaries
       if (this.isChainBoundary(line.text)) {
-        if (config.enableDebugLogging) {
-          console.log(`[OperatorChain] Hit boundary at line ${currentLine}, chain starts at ${firstOperatorLine}`);
-        }
         break;
       }
       
@@ -396,42 +341,27 @@ export class OperatorChainRule extends BaseRule {
       if (this.endsWithOperator(lineWithoutComments)) {
         // This is part of the chain - update the first operator line
         firstOperatorLine = currentLine;
-        if (config.enableDebugLogging) {
-          console.log(`[OperatorChain] Line ${currentLine} is part of chain, updating chain start to ${firstOperatorLine}`);
-        }
         currentLine--;
         continue;
       } else {
         // This line doesn't end with an operator
         if (currentLine === fromLine) {
           // The fromLine itself doesn't end with operator - not part of a chain
-          if (config.enableDebugLogging) {
-            console.log(`[OperatorChain] FromLine ${fromLine} doesn't end with operator, using it as base`);
-          }
           return fromLine;
         } else {
           // We've found a line that doesn't end with operator
           // Check if it's a function argument that we should skip over
           if (this.isInsideFunctionCall(line.text)) {
-            if (config.enableDebugLogging) {
-              console.log(`[OperatorChain] Line ${currentLine} appears to be function argument, continuing search`);
-            }
             currentLine--;
             continue;
           } else {
             // This is where the chain starts
-            if (config.enableDebugLogging) {
-              console.log(`[OperatorChain] Found chain break at line ${currentLine}, chain starts at ${firstOperatorLine}`);
-            }
             break;
           }
         }
       }
     }
     
-    if (config.enableDebugLogging) {
-      console.log(`[OperatorChain] Chain base determined: line ${firstOperatorLine}: "${document.lineAt(firstOperatorLine).text.trim()}"`);
-    }
     
     return firstOperatorLine;
   }

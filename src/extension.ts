@@ -1,7 +1,6 @@
 import * as vscode from 'vscode';
 import { IndentationEngine } from './indentation/indentationEngine.js';
 import { DebugLogger } from './utils/debugUtils.js';
-import { ConfigurationManager } from './config/settings.js';
 
 let indentationEngine: IndentationEngine;
 
@@ -34,45 +33,53 @@ function shouldBypassDefaultIndentation(
   document: vscode.TextDocument, 
   position: vscode.Position
 ): boolean {
-  const currentLine = document.lineAt(position.line);
-  const currentLineText = currentLine.text.trim();
-  
-  // Check if we're after a completed expression/statement
+  // Simplified bypass logic - only bypass for clearly completed expressions
   if (position.line > 0) {
     const prevLine = document.lineAt(position.line - 1);
     const prevLineText = prevLine.text.trim();
     
-    // Previous line ends with closing bracket/parenthesis = completed function/expression
-    if (/[)\]}]\s*$/.test(prevLineText)) {
+    // Only bypass after function calls that are clearly complete
+    if (/\w+\([^)]*\)\s*$/.test(prevLineText)) {
+      // Bypass case - will be logged by DebugLogger.logBypassDefault()
       return true;
     }
-    
-    // Previous line ends with operator but current line doesn't contain operators = completed chain
-    const prevHasOperator = /(%>%|\|>|\+|-|\*|\/|=|<-|->)\s*$/.test(prevLineText);
-    const currentHasOperator = /(%>%|\|>|\+|-|\*|\/|=|<-|->)/.test(currentLineText);
-    
-    if (prevHasOperator && !currentHasOperator && currentLineText.length > 0) {
-      return true;
-    }
-  }
-  
-  // Current line ends with closing bracket/parenthesis = completed expression
-  if (currentLineText.length > 0 && /[)\]}]\s*$/.test(currentLineText)) {
-    return true;
   }
   
   return false;
 }
 
-
+/**
+ * Check if position is inside parentheses/brackets
+ */
+function checkInsideParentheses(document: vscode.TextDocument, position: vscode.Position): boolean {
+  let openCount = 0;
+  let closeCount = 0;
+  
+  // Count brackets from start of document to current position
+  for (let lineNum = 0; lineNum <= position.line; lineNum++) {
+    const line = document.lineAt(lineNum);
+    const text = lineNum === position.line 
+      ? line.text.substring(0, position.character)
+      : line.text;
+    
+    for (const char of text) {
+      if (char === '(' || char === '[' || char === '{') {
+        openCount++;
+      } else if (char === ')' || char === ']' || char === '}') {
+        closeCount++;
+      }
+    }
+  }
+  
+  return openCount > closeCount;
+}
 
 export function activate(context: vscode.ExtensionContext): void {
   // Initialize the indentation engine and debug logger
   indentationEngine = new IndentationEngine();
   DebugLogger.initialize();
   
-  // Log activation to ensure extension is working
-  DebugLogger.logDebug('R Indent extension activated');
+  // Extension initialization logged by DebugLogger.initialize()
   
 
   
@@ -102,25 +109,42 @@ export function activate(context: vscode.ExtensionContext): void {
       return vscode.commands.executeCommand('default:type', args);
     }
     
-    DebugLogger.logDebug(`Processing Enter at line ${cursor.line}, col ${cursor.character}`);
     
     // Use the new indentation engine
     const targetIndent = indentationEngine.calculateEnterIndentation(document, cursor);
     
     if (targetIndent !== null) {
+      DebugLogger.log(`[DEBUG] About to insert: "\\n${targetIndent}" (${targetIndent.length} spaces) after line ${cursor.line} (content will appear on line ${cursor.line + 1})`);
+      
       const success = await editor.edit((eb) => {
         eb.insert(cursor, `\n${targetIndent}`);
       });
       
+      DebugLogger.log(`[DEBUG] Edit operation success: ${success}`);
+      
+      // Check what indentation actually got applied after a delay
+      setTimeout(() => {
+        const newCursor = editor.selection.active;
+        const newLine = editor.document.lineAt(newCursor.line);
+        const actualIndent = newLine.text.match(/^\s*/)?.[0] ?? '';
+        DebugLogger.log(`[DEBUG] Cursor now at Line ${newCursor.line}, Column ${newCursor.character}`);
+        DebugLogger.log(`[DEBUG] Line ${newCursor.line} content: "${newLine.text}"`);
+        DebugLogger.log(`[DEBUG] Actual indentation after edit: "${actualIndent}" (${actualIndent.length} spaces)`);
+        if (actualIndent.length !== targetIndent.length) {
+          DebugLogger.log(`[DEBUG] MISMATCH! Expected ${targetIndent.length}, got ${actualIndent.length}`);
+        }
+      }, 100);
+      
       // Log successful rule application
       const appliedRule = indentationEngine.getLastAppliedRule();
       if (appliedRule && success) {
-        DebugLogger.logRuleSuccess(appliedRule, cursor.line, targetIndent.length);
+        DebugLogger.logRuleSuccess(appliedRule, cursor.line + 1, targetIndent.length);
       }
       
       if (!success) {
         return vscode.commands.executeCommand('default:type', args);
       }
+      // Indentation applied successfully - debug logging handled by IndentationEngine
       return undefined;
     }
     
