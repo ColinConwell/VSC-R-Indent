@@ -16,14 +16,17 @@ Intelligent auto-indentation for R that emulates RStudio's indentation behavior 
 
 ### **Function Argument Alignment**
 - Aligns arguments to opening parentheses inside function calls
-- Parameter assignments align values with parameter names
+- Parameter assignments with additive indentation (bracket alignment + 2 spaces)
 - Handles nested function calls and complex expressions
 - Supports all bracket types: `()`, `[]`, `{}`
+- Immediate newlines after opening brackets get default indentation
 
 ### **Context-Sensitive Logic**
-- Bracket alignment takes precedence inside parentheses
-- Operator chains take precedence outside parentheses
-- Intelligent chain completion detection
+- Proximity-based additive rule system for cooperative indentation
+- Bracket alignment takes precedence inside parentheses over outer operators
+- Operator chains apply outside parentheses
+- Parameter assignments combine with bracket alignment inside parentheses
+- Intelligent closing bracket context detection
 - No indentation after completed chains
 
 ## How It Works
@@ -48,9 +51,10 @@ result <- my_function(arg1 = value1,
                       arg2 = value2,    # ← Aligns to opening parenthesis
                       arg3 = value3)
 
-# Parameter assignments align values
+# Parameter assignments: bracket alignment + 2 spaces
 strtoi("5",
-       base = 10L)                      # ← Value aligns with parameter name
+       base = 
+         10L)                          # ← 7 (bracket) + 2 (param) = 9 spaces
 
 # Arithmetic chains
 result <- 5 +
@@ -73,7 +77,7 @@ Access settings via `Preferences > Settings > Extensions > R Indent`:
 |---------|---------|-------------|
 | `indentSize` | `2` | Base indentation size for all operations (operator chains, brackets, etc.) |
 | `alignFunctionArguments` | `true` | Align function args to opening parentheses |
-| `enableDebugLogging` | `false` | Enable debug logging for development |
+| `enableDebugLogging` | `false` | Enable structured debug logging (Auto-Indent Check and Applied logs) |
 
 ### Example Configuration
 
@@ -113,50 +117,69 @@ npm run watch           # Watch for changes
 ```
 
 ### Testing
-```bash
-# Launch Extension Development Host
-# Press F5 in VS Code
 
-# Test with sample R code
-# See tests/indent_test.R for examples
-```
+1. Launch Extension Development Host (Press `F5` in VS Code)
+2. Test with sample R code (see tests/indent_test.R for examples)
 
 ### Project Structure
 ```
 src/
-├── config/             # Configuration management
-├── indentation/        # Core indentation engine
-├── rules/             # Indentation rules
-│   ├── OperatorChainRules.ts  # Handles all operator chains
-│   └── BracketRules.ts        # Handles bracket alignment
-├── utils/             # Debug utilities
-└── extension.ts       # Main extension entry point
+├── config/                    # Configuration management
+│   ├── defaults.ts           # Default configuration values
+│   ├── settings.ts           # VSCode settings integration
+│   └── types.ts              # Type definitions
+├── indentation/               # Core indentation engine
+│   ├── indentationEngine.ts  # Main engine with proximity-based rules
+│   └── rParser.ts            # R syntax parsing utilities
+├── rules/                     # Indentation rules (priority-based)
+│   ├── BaseRule.ts           # Abstract base class for all rules
+│   ├── OperatorChainRules.ts # Operator chains (priority 120)
+│   ├── ParameterRules.ts     # Parameter assignments (priority 110)
+│   └── BracketRules.ts       # Bracket alignment & closing rules (100-80)
+├── utils/                     # Debug utilities
+│   └── debugUtils.ts         # Structured debug logging
+└── extension.ts               # Main extension entry point
 
 tests/
-├── unit/              # Unit test framework
-├── indent_test.R      # Main test file
-└── comprehensive_test.R  # Extended test scenarios
+├── unit/                      # Unit test framework
+│   ├── testFramework.ts      # Testing utilities
+│   ├── bracketTests.ts       # Bracket alignment tests
+│   └── pipeTests.ts          # Operator chain tests
+├── indent_test.R             # Main test file
+├── comprehensive_test.R      # Extended test scenarios
+└── new_features_test.R       # Recent feature tests
 ```
 
 ## Architecture
 
-The extension uses a modular, rule-based architecture:
+The extension uses a modular, proximity-based rule architecture:
 
-1. **Parser**: Analyzes R syntax and context
-2. **Rule Engine**: Applies priority-based indentation rules
-3. **Configuration**: User-customizable settings
-4. **Integration**: VSCode API integration
+1. **Context Parser**: Analyzes R syntax and cursor context
+2. **Proximity-Based Engine**: Applies cooperative indentation rules
+3. **Structured Logging**: Detailed debug output with rule explanations
+4. **Configuration**: User-customizable settings
+5. **VSCode Integration**: Seamless editor integration
 
-### Rule Priority
-1. **Operator Chain Rules** (pipes, arithmetic, assignment) - outside parentheses
-2. **Bracket Alignment Rules** - inside parentheses and function calls
-3. **VSCode Default** - fallback when no rules apply
+### Rule Priority & Cooperation
+1. **OperatorChain** (120) - Highest priority for operator chains outside parentheses
+2. **ParameterAssignment** (110) - Parameter value indentation (additive with brackets)
+3. **BracketAlignment** (100) - Function argument alignment
+4. **HangingIndent** (90) - Fallback indentation
+5. **ClosingBracketContext** (85) - Context-aware closing bracket alignment
+6. **ClosingBracket** (80) - Basic closing bracket handling
+
+### Proximity-Based Additive System
+- **Immediate Layer**: Parameter assignments, operator chains at cursor
+- **Surrounding Layer**: Bracket alignment, hanging indents
+- **Terminating Rules**: Closing bracket contexts override all others
+- **Cooperative Logic**: Rules combine additively (bracket position + parameter indent)
 
 ### Key Design Principles
-- **Context-aware**: Different rules apply inside vs outside parentheses
-- **RStudio compatibility**: Matches RStudio's indentation behavior
-- **Chain completion**: No indentation after completed chains
-- **Parameter alignment**: Values align with parameter names
+- **Context-first**: Parse complete context before applying rules
+- **Additive cooperation**: Rules combine rather than compete
+- **RStudio compatibility**: Matches RStudio's indentation behavior exactly
+- **Intelligent overrides**: Bracket alignment takes precedence over outer operators
+- **Structured debugging**: Comprehensive rule application logging
 
 ## Comparison with RStudio
 
@@ -169,19 +192,12 @@ The extension uses a modular, rule-based architecture:
 | Chain completion detection | ✅ | ✅ |
 | Pipe operator support | ✅ | ✅ |
 | Arithmetic operator chains | ✅ | ✅ |
-| Configurable behavior | Limited | ✅ Extensive |
+| Configurable behavior | Limited | ~ In Progress |
 | Works in Cursor IDE | ❌ | ✅ |
 | Performance | Native | Fast (TypeScript) |
 
-## Contributing
-
-We welcome contributions! Please check the GitHub repository for development guidelines.
 
 ### Reporting Issues
 - Use the [GitHub Issues](https://github.com/ColinConwell/VSC-R-Indent/issues) page
 - Include R code examples that demonstrate the issue
 - Specify your VSCode version and extension settings
-
-## License
-
-MIT License - see [LICENSE](./LICENSE) for details.
