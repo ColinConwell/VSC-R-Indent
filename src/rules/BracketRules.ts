@@ -51,7 +51,16 @@ export class BracketAlignmentRule extends BaseRule {
       return null;
     }
     
-    // Align to column after the bracket
+    // Check if this is an immediate newline after opening bracket
+    // Pattern: func(\n  <- cursor here, should get default indent
+    if (this.isImmediateAfterOpeningBracket(document, bracketResult, position)) {
+      // Use default indent (like RStudio does for immediate newlines)
+      const bracketLine = document.lineAt(bracketResult.line);
+      const baseIndent = this.getBaseIndent(bracketLine.text);
+      return baseIndent + ' '.repeat(config.indentSize);
+    }
+    
+    // Normal case: align to column after the bracket (first argument alignment)
     const targetColumn = bracketResult.column + 1;
     return ' '.repeat(targetColumn);
   }
@@ -220,6 +229,47 @@ export class BracketAlignmentRule extends BaseRule {
   }
   
   /**
+   * Check if cursor is immediately after an opening bracket (should use default indent)
+   */
+  private isImmediateAfterOpeningBracket(
+    document: vscode.TextDocument, 
+    bracketResult: { line: number; column: number; bracketType: '(' | '[' | '{' }, 
+    position: vscode.Position
+  ): boolean {
+    // Check if there's any content between the opening bracket and current position
+    const bracketLine = document.lineAt(bracketResult.line);
+    const bracketText = bracketLine.text;
+    
+    // If bracket and cursor are on same line
+    if (bracketResult.line === position.line) {
+      const afterBracket = bracketText.substring(bracketResult.column + 1, position.character);
+      // Immediate if only whitespace between bracket and cursor
+      return /^\s*$/.test(afterBracket);
+    }
+    
+    // If bracket and cursor are on different lines
+    if (bracketResult.line < position.line) {
+      // Check if there's any content after the opening bracket on its line
+      const afterBracket = bracketText.substring(bracketResult.column + 1);
+      if (!/^\s*$/.test(afterBracket)) {
+        return false; // There's content after bracket
+      }
+      
+      // Check if there are any non-empty lines between bracket and cursor
+      for (let lineNum = bracketResult.line + 1; lineNum < position.line; lineNum++) {
+        const lineText = document.lineAt(lineNum).text;
+        if (!/^\s*$/.test(lineText)) {
+          return false; // There's content between bracket and cursor
+        }
+      }
+      
+      return true; // Truly immediate - only whitespace between bracket and cursor
+    }
+    
+    return false;
+  }
+  
+  /**
    * Check if we're currently inside brackets
    */
   private isInsideBrackets(document: vscode.TextDocument, line: number, column: number): boolean {
@@ -285,5 +335,168 @@ export class ClosingBracketRule extends BaseRule {
   public getIndentation(context: IndentationContext, config: RIndentConfig): string | null {
     // After closing bracket, return to column 0 (no indentation)
     return '';
+  }
+}
+
+export class ClosingBracketContextRule extends BaseRule {
+  constructor() {
+    super('ClosingBracketContext', 85); // Higher priority than ClosingBracket but lower than BracketAlignment
+  }
+  
+  public applies(context: IndentationContext, config: RIndentConfig): boolean {
+    if (!context.isEnterKey) return false;
+    
+    const editor = vscode.window.activeTextEditor;
+    if (!editor) return false;
+    
+    const document = editor.document;
+    const position = new vscode.Position(context.line, context.column);
+    
+    // Find the nearest opening bracket
+    const bracketResult = this.findNearestOpeningBracket(document, position);
+    if (!bracketResult) return false;
+    
+    // Check if we're in a "closing context" - after arguments but before closing bracket
+    return this.isInClosingContext(document, bracketResult, position);
+  }
+  
+  public getIndentation(context: IndentationContext, config: RIndentConfig): string | null {
+    const editor = vscode.window.activeTextEditor;
+    if (!editor) return null;
+    
+    const document = editor.document;
+    const position = new vscode.Position(context.line, context.column);
+    
+    // Find the nearest opening bracket
+    const bracketResult = this.findNearestOpeningBracket(document, position);
+    if (!bracketResult) return null;
+    
+    // Return to the function's base indent (same as function line)
+    const bracketLine = document.lineAt(bracketResult.line);
+    const baseIndent = this.getBaseIndent(bracketLine.text);
+    return baseIndent;
+  }
+  
+  /**
+   * Check if we're in a closing context (after last argument, before closing bracket)
+   */
+  private isInClosingContext(
+    document: vscode.TextDocument, 
+    bracketResult: { line: number; column: number; bracketType: '(' | '[' | '{' }, 
+    position: vscode.Position
+  ): boolean {
+    // CRITICAL: ClosingBracketContext only applies when first argument is on separate line
+    // Check if the opening bracket line has arguments on the same line
+    const bracketLineText = document.lineAt(bracketResult.line).text;
+    const afterBracket = bracketLineText.substring(bracketResult.column + 1).trim();
+    
+    // If there's content after the bracket on the same line, this is NOT a closing context
+    // Example: strtoi("5") <- "5" is on same line as bracket, so no closing context
+    if (afterBracket !== '' && !afterBracket.startsWith(')') && !afterBracket.startsWith(']') && !afterBracket.startsWith('}')) {
+      return false;
+    }
+    
+    // Look at the current line up to cursor
+    const currentLine = document.lineAt(position.line);
+    const textBeforeCursor = currentLine.text.substring(0, position.character).trim();
+    
+    // If current line is empty or just whitespace, check previous content
+    if (textBeforeCursor === '') {
+      // Look backward to find the last non-whitespace content
+      for (let lineNum = position.line - 1; lineNum > bracketResult.line; lineNum--) {
+        const lineText = document.lineAt(lineNum).text.trim();
+        if (lineText !== '') {
+          // Check if this looks like the end of an argument list
+          return this.looksLikeArgumentEnd(lineText);
+        }
+      }
+      
+      // If no content found between bracket and cursor, means bracket line was empty after bracket
+      return true;
+    } else {
+      // Current line has content - check if it looks like argument end
+      return this.looksLikeArgumentEnd(textBeforeCursor);
+    }
+  }
+  
+  /**
+   * Check if text looks like the end of an argument (suggesting closing bracket should follow)
+   */
+  private looksLikeArgumentEnd(text: string): boolean {
+    // Patterns that suggest we're done with arguments:
+    // - Line ends with a value (no comma) - e.g., "value", TRUE, 10L
+    // - Line ends with a closing quote or bracket - e.g., "string")
+    // - Line ends without comma or assignment operator
+    
+    const trimmed = text.trim();
+    
+    // Don't apply if line ends with operators that suggest continuation
+    if (/[=,+\-*/|&<>]$/.test(trimmed)) {
+      return false;
+    }
+    
+    // Don't apply if line looks like parameter name (ends with =)
+    if (/=\s*$/.test(trimmed)) {
+      return false;
+    }
+    
+    // Apply if line ends with value-like patterns
+    return /[)\]}"'A-Za-z0-9L]$/.test(trimmed);
+  }
+  
+  /**
+   * Find the nearest opening bracket to the left of cursor
+   */
+  private findNearestOpeningBracket(document: vscode.TextDocument, position: vscode.Position): {
+    line: number;
+    column: number;
+    bracketType: '(' | '[' | '{';
+  } | null {
+    let bracketStack: Array<{ type: string; line: number; column: number }> = [];
+    
+    // Search backwards from cursor position
+    let currentLine = position.line;
+    let currentColumn = position.character;
+    
+    while (currentLine >= 0) {
+      const line = document.lineAt(currentLine);
+      const lineText = line.text;
+      
+      // Set search range for this line
+      const searchEnd = currentLine === position.line ? currentColumn : lineText.length;
+      
+      // Search backwards in this line
+      for (let col = searchEnd - 1; col >= 0; col--) {
+        const char = lineText[col];
+        
+        if (char === ')' || char === ']' || char === '}') {
+          // Push closing bracket onto stack
+          bracketStack.push({ type: char, line: currentLine, column: col });
+        } else if (char === '(' || char === '[' || char === '{') {
+          // Found opening bracket
+          const matching = bracketStack.find(b => 
+            (char === '(' && b.type === ')') ||
+            (char === '[' && b.type === ']') ||
+            (char === '{' && b.type === '}')
+          );
+          
+          if (matching) {
+            bracketStack = bracketStack.filter(b => b !== matching);
+          } else {
+            // Found unmatched opening bracket
+            return {
+              line: currentLine,
+              column: col,
+              bracketType: char as '(' | '[' | '{'
+            };
+          }
+        }
+      }
+      
+      currentLine--;
+      currentColumn = 0; // For previous lines, start from end
+    }
+    
+    return null;
   }
 }

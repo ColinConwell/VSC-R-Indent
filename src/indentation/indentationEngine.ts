@@ -6,7 +6,7 @@ import * as vscode from 'vscode';
 import { IndentationContext, IndentationRule, RIndentConfig } from '../config/types.js';
 import { ConfigurationManager } from '../config/settings.js';
 import { DebugLogger } from '../utils/debugUtils.js';
-import { BracketAlignmentRule, HangingIndentRule, ClosingBracketRule } from '../rules/BracketRules.js';
+import { BracketAlignmentRule, HangingIndentRule, ClosingBracketRule, ClosingBracketContextRule } from '../rules/BracketRules.js';
 import { ParameterAssignmentRule } from '../rules/ParameterRules.js';
 // Removed PipeChain rules - now handled by OperatorChain
 // Removed PlusChain rules - now handled by OperatorChain
@@ -41,6 +41,7 @@ export class IndentationEngine {
       // Bracket rules
       new BracketAlignmentRule(),
       new HangingIndentRule(),
+      new ClosingBracketContextRule(), // About to close function call
       new ClosingBracketRule(),
     ];
     
@@ -211,7 +212,22 @@ export class IndentationEngine {
       return null;
     }
     
-    // Check if ClosingBracket should reset to outer context
+    // Check for terminating rules (closing bracket contexts override everything)
+    const closingBracketContextRule = applicableRules.find(r => r.name === 'ClosingBracketContext');
+    if (closingBracketContextRule) {
+      // ClosingBracketContext terminates - get the actual indentation from the rule
+      const rule = this.rules.find(r => r.name === 'ClosingBracketContext');
+      const indentation = rule?.getIndentation(context, this.config);
+      if (indentation !== null && indentation !== undefined) {
+        this.lastLayerContributions = [{
+          layer: 'Function Close Context',
+          rules: ['ClosingBracketContext'],
+          indent: indentation.length
+        }];
+        return indentation;
+      }
+    }
+    
     const closingBracketRule = applicableRules.find(r => r.name === 'ClosingBracket');
     if (closingBracketRule) {
       // ClosingBracket should preserve outer bracket alignment but reset immediate context
