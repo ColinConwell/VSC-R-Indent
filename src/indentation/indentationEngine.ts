@@ -389,7 +389,13 @@ export class IndentationEngine {
     const immediateRules = applicableRules.filter(r => r.name === 'ParameterAssignment' || r.name === 'OperatorChain');
     
     if (applicableRules.length === 1) {
-      DebugLogger.log(`     ${applicableRules[0].name} rule: ${finalIndent.length} spaces`);
+      const rule = applicableRules[0];
+      DebugLogger.log(`     ${rule.name} rule: ${finalIndent.length} spaces`);
+      
+      // Add detailed explanation for bracket alignment
+      if (rule.name === 'BracketAlignment' && rule.explanation) {
+        DebugLogger.log(`       ${rule.explanation}`);
+      }
     } else if (bracketRule && immediateRules.length > 0) {
       DebugLogger.log(`     Base + Additions (total: ${finalIndent.length} spaces):`);
       DebugLogger.log(`       Base: ${bracketRule.name} → ${bracketRule.indentSize} spaces`);
@@ -454,6 +460,24 @@ export class IndentationEngine {
    * Get bracket rule explanation
    */
   private getBracketRuleExplanation(context: IndentationContext, indentSize: number): string {
+    const editor = vscode.window.activeTextEditor;
+    if (!editor) return `Bracket alignment to column ${indentSize}`;
+    
+    // Find the bracket that's being aligned to
+    const position = new vscode.Position(context.line, context.column);
+    
+    // Use BracketAlignmentRule's bracket finding method
+    const bracketRule = this.rules.find(r => r.name === 'BracketAlignment') as BracketAlignmentRule;
+    if (bracketRule) {
+      const bracketResult = (bracketRule as any).findNearestOpeningBracket(editor.document, position);
+      if (bracketResult) {
+        const bracketLine = editor.document.lineAt(bracketResult.line);
+        const functionMatch = bracketLine.text.substring(0, bracketResult.column).match(/(\w+)\s*$/);
+        const functionName = functionMatch ? functionMatch[1] : 'function';
+        return `Align to ${functionName}( at line ${bracketResult.line + 1}, column ${bracketResult.column + 1}`;
+      }
+    }
+    
     return `Bracket alignment to column ${indentSize}`;
   }
 

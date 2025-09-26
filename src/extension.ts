@@ -114,26 +114,9 @@ export function activate(context: vscode.ExtensionContext): void {
     const targetIndent = indentationEngine.calculateEnterIndentation(document, cursor);
     
     if (targetIndent !== null) {
-      DebugLogger.log(`[DEBUG] About to insert: "\\n${targetIndent}" (${targetIndent.length} spaces) after line ${cursor.line} (content will appear on line ${cursor.line + 1})`);
-      
       const success = await editor.edit((eb) => {
         eb.insert(cursor, `\n${targetIndent}`);
       });
-      
-      DebugLogger.log(`[DEBUG] Edit operation success: ${success}`);
-      
-      // Check what indentation actually got applied after a delay
-      setTimeout(() => {
-        const newCursor = editor.selection.active;
-        const newLine = editor.document.lineAt(newCursor.line);
-        const actualIndent = newLine.text.match(/^\s*/)?.[0] ?? '';
-        DebugLogger.log(`[DEBUG] Cursor now at Line ${newCursor.line}, Column ${newCursor.character}`);
-        DebugLogger.log(`[DEBUG] Line ${newCursor.line} content: "${newLine.text}"`);
-        DebugLogger.log(`[DEBUG] Actual indentation after edit: "${actualIndent}" (${actualIndent.length} spaces)`);
-        if (actualIndent.length !== targetIndent.length) {
-          DebugLogger.log(`[DEBUG] MISMATCH! Expected ${targetIndent.length}, got ${actualIndent.length}`);
-        }
-      }, 100);
       
       // Log successful rule application
       const appliedRule = indentationEngine.getLastAppliedRule();

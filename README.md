@@ -170,7 +170,7 @@ The extension uses a modular, rule-based architecture:
 | Pipe operator support | ✅ | ✅ |
 | Arithmetic operator chains | ✅ | ✅ |
 | Configurable behavior | Limited | ✅ Extensive |
-| Works in Cursor | ❌ | ✅ |
+| Works in Cursor IDE | ❌ | ✅ |
 | Performance | Native | Fast (TypeScript) |
 
 ## Contributing
