@@ -37,9 +37,7 @@ ggplot(mtcars, aes(disp, mpg)) +
                end = 0.4 * pi, 
                inner.radius = 0.3) +
   # increase space between axis and plot border
-  theme(text = element_text(size=12, 
-                            family='sans'),
+  theme(text = element_text(size=12, family='sans'),
         panel.grid.minor = element_blank(),
         panel.border = element_rect(fill='transparent')) +
-  theme(text = element_text(size=12, 
-  family='sans'))
+  theme(text = element_text(size=12, family='sans'))

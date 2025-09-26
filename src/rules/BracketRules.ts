@@ -27,12 +27,27 @@ export class BracketAlignmentRule extends BaseRule {
     // Look left from cursor to find the nearest opening bracket
     const bracketResult = this.findNearestOpeningBracket(document, position);
     
+    // DEBUG: Log bracket detection result
+    if (config.enableDebugLogging) {
+      if (bracketResult) {
+        const bracketLine = document.lineAt(bracketResult.line);
+        console.log(`[BracketAlignment DEBUG] Found bracket '${bracketResult.bracketType}' at line ${bracketResult.line + 1}, col ${bracketResult.column}: "${bracketLine.text.trim()}"`);
+      } else {
+        console.log(`[BracketAlignment DEBUG] No bracket found for line ${context.line + 1}, col ${context.column}`);
+      }
+    }
+    
     // If no brackets found, BracketAlignment doesn't apply regardless of operators
     if (bracketResult === null) {
       return false;
     }
     
     const hasNearbyOperator = this.hasOperatorNearCursor(document, position);
+    
+    // DEBUG: Log operator detection result
+    if (config.enableDebugLogging) {
+      DebugLogger.log(`[BracketAlignment DEBUG] hasOperatorNearCursor: ${hasNearbyOperator} for line ${context.line + 1}, col ${context.column}`);
+    }
     
     // Apply bracket alignment only if we have a bracket and no nearby operator
     return !hasNearbyOperator;
@@ -123,12 +138,16 @@ export class BracketAlignmentRule extends BaseRule {
     let currentLine = position.line;
     let currentColumn = position.character;
     
+    DebugLogger.log(`[BRACKET DEBUG] Starting search from line ${currentLine + 1}, col ${currentColumn}`);
+    
     while (currentLine >= 0) {
       const line = document.lineAt(currentLine);
       const lineText = line.text;
       
       // Set search range for this line
       const searchEnd = currentLine === position.line ? currentColumn : lineText.length;
+      
+      DebugLogger.log(`[BRACKET DEBUG] Line ${currentLine + 1}: "${lineText}" (searching cols ${searchEnd-1} to 0)`);
       
       // Search backwards in this line
       for (let col = searchEnd - 1; col >= 0; col--) {
@@ -137,8 +156,10 @@ export class BracketAlignmentRule extends BaseRule {
         if (char === ')' || char === ']' || char === '}') {
           // Closing bracket - add to stack
           bracketStack.push({ type: char, line: currentLine, column: col });
+          DebugLogger.log(`[BRACKET DEBUG] Found closing '${char}' at col ${col}, stack size: ${bracketStack.length}`);
         } else if (char === '(' || char === '[' || char === '{') {
           // Opening bracket
+          DebugLogger.log(`[BRACKET DEBUG] Found opening '${char}' at col ${col}, stack size: ${bracketStack.length}`);
           if (bracketStack.length > 0) {
             // Check if this closes the most recent bracket
             const lastBracket = bracketStack[bracketStack.length - 1];
@@ -147,10 +168,14 @@ export class BracketAlignmentRule extends BaseRule {
                            (char === '{' && lastBracket.type === '}');
             
             if (matching) {
+              DebugLogger.log(`[BRACKET DEBUG] Matched '${char}' with '${lastBracket.type}', popping stack`);
               bracketStack.pop(); // This bracket is matched
+            } else {
+              DebugLogger.log(`[BRACKET DEBUG] No match for '${char}' with '${lastBracket.type}'`);
             }
           } else {
             // Found an unmatched opening bracket
+            DebugLogger.log(`[BRACKET DEBUG] Found unmatched opening '${char}' at line ${currentLine + 1}, col ${col} - RETURNING!`);
             return {
               line: currentLine,
               column: col,
@@ -176,6 +201,7 @@ export class BracketAlignmentRule extends BaseRule {
       currentColumn = 0;
     }
     
+    DebugLogger.log(`[BRACKET DEBUG] No unmatched bracket found - returning null`);
     return null;
   }
   
@@ -188,6 +214,8 @@ export class BracketAlignmentRule extends BaseRule {
       const line = document.lineAt(position.line);
       const lineText = line.text;
       
+      DebugLogger.log(`[OPERATOR DEBUG] Checking current line: "${lineText}" at pos ${position.character}`);
+      
       for (let col = position.character - 1; col >= 0; col--) {
         const char = lineText[col];
         
@@ -196,35 +224,57 @@ export class BracketAlignmentRule extends BaseRule {
         
         // Check for operators (excluding = for parameter assignments)
         if (['+', '-', '*', '/'].includes(char)) {
+          DebugLogger.log(`[OPERATOR DEBUG] Found operator '${char}' at col ${col} - RETURNING TRUE`);
           return true;
         }
         
         // Multi-character operators
         if (char === '%' && col >= 2 && lineText.substring(col - 2, col + 1) === '%>%') {
+          DebugLogger.log(`[OPERATOR DEBUG] Found operator '%>%' at col ${col-2} - RETURNING TRUE`);
           return true;
         }
         if (char === '>' && col >= 1 && lineText.substring(col - 1, col + 1) === '|>') {
+          DebugLogger.log(`[OPERATOR DEBUG] Found operator '|>' at col ${col-1} - RETURNING TRUE`);
           return true;
         }
         if (char === '-' && col >= 1 && lineText.substring(col - 1, col + 1) === '<-') {
+          DebugLogger.log(`[OPERATOR DEBUG] Found operator '<-' at col ${col-1} - RETURNING TRUE`);
           return true;
         }
         if (char === '>' && col >= 1 && lineText.substring(col - 1, col + 1) === '->') {
+          DebugLogger.log(`[OPERATOR DEBUG] Found operator '->' at col ${col-1} - RETURNING TRUE`);
           return true;
         }
         
+        DebugLogger.log(`[OPERATOR DEBUG] Hit non-operator '${char}' at col ${col} - STOPPING`);
         // If we hit a non-operator, stop
         break;
       }
     }
     
     // Check if previous line ends with an operator (excluding = for parameter assignments)
+    // BUT only if we're not inside brackets - bracket alignment takes priority over outer operators
     if (position.line > 0) {
       const prevLine = document.lineAt(position.line - 1);
       const prevLineText = prevLine.text.trim();
-      return this.endsWithNonParameterOperator(prevLineText);
+      const prevEndsWithOp = this.endsWithNonParameterOperator(prevLineText);
+      DebugLogger.log(`[OPERATOR DEBUG] Previous line: "${prevLineText}" ends with operator: ${prevEndsWithOp}`);
+      
+      // If we found a bracket (which we know we did since this method is called from applies()),
+      // then bracket alignment should take priority over outer operators
+      DebugLogger.log(`[OPERATOR DEBUG] About to check bracket context to override operator...`);
+      const bracketResult = this.findNearestOpeningBracket(document, position);
+      DebugLogger.log(`[OPERATOR DEBUG] Bracket result: ${bracketResult ? 'FOUND' : 'NOT FOUND'}`);
+      if (bracketResult) {
+        DebugLogger.log(`[OPERATOR DEBUG] Found bracket context - ignoring outer operator for bracket alignment`);
+        return false;
+      }
+      DebugLogger.log(`[OPERATOR DEBUG] No bracket context found - proceeding with operator check`);
+      
+      return prevEndsWithOp;
     }
     
+    DebugLogger.log(`[OPERATOR DEBUG] No operators found - RETURNING FALSE`);
     return false;
   }
   
