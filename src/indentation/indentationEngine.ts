@@ -68,6 +68,17 @@ export class IndentationEngine {
     position: vscode.Position,
     character: string
   ): string | null {
+    // Handle on-type closing bracket dedent directly
+    if (/^[)\]}]$/.test(character)) {
+      const opener = this.findNearestOpeningBracket(document, position);
+      if (opener) {
+        const openerLine = document.lineAt(opener.line);
+        const baseIndent = openerLine.text.match(/^\s*/)?.[0] ?? '';
+        return baseIndent;
+      }
+      // If no opener found, fall through to rule-based handling
+    }
+
     const context = this.createContext(document, position, false, character);
     return this.applyRules(context);
   }
@@ -201,6 +212,51 @@ export class IndentationEngine {
     this.rules.sort((a, b) => b.priority - a.priority);
   }
   
+  /**
+   * Find the nearest unmatched opening bracket to the left of the given position
+   * (scans backward across lines, pairing brackets as encountered)
+   */
+  private findNearestOpeningBracket(
+    document: vscode.TextDocument,
+    position: vscode.Position
+  ): { line: number; column: number; bracketType: '(' | '[' | '{' } | null {
+    let bracketStack: Array<{ type: string; line: number; column: number }> = [];
+    let currentLine = position.line;
+    let currentColumn = position.character;
+
+    while (currentLine >= 0) {
+      const line = document.lineAt(currentLine);
+      const lineText = line.text;
+      const searchEnd = currentLine === position.line ? currentColumn : lineText.length;
+
+      for (let col = searchEnd - 1; col >= 0; col--) {
+        const char = lineText[col];
+        if (char === ')' || char === ']' || char === '}') {
+          bracketStack.push({ type: char, line: currentLine, column: col });
+        } else if (char === '(' || char === '[' || char === '{') {
+          if (bracketStack.length > 0) {
+            const last = bracketStack[bracketStack.length - 1];
+            const matching = (char === '(' && last.type === ')') ||
+                             (char === '[' && last.type === ']') ||
+                             (char === '{' && last.type === '}');
+            if (matching) {
+              bracketStack.pop();
+            } else {
+              // Different kind of bracket encountered; continue scanning
+            }
+          } else {
+            return { line: currentLine, column: col, bracketType: char as '(' | '[' | '{' };
+          }
+        }
+      }
+
+      currentLine--;
+      currentColumn = 0;
+    }
+
+    return null;
+  }
+
   
   /**
    * Calculate proximity-based additive indentation by combining rules in context layers

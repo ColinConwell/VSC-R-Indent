@@ -231,10 +231,14 @@ export class OperatorChainRule extends BaseRule {
       return !isInsideParens; // Top-level only when outside parentheses
     }
     
-    // Assignment operators are top-level only when NOT inside parentheses
-    if ((lineText.endsWith('=') || lineText.endsWith('<-') || lineText.endsWith('->')) && document && position) {
-      const isInsideParens = this.isInsideParentheses(document, position);
-      return !isInsideParens; // Top-level only when outside parentheses
+    // Assignment operators are top-level only when NOT inside parentheses and when it's a single '='
+    // Exclude equality/relational operators: ==, !=, <=, >=
+    if (document && position) {
+      const singleEq = /(^|[^=!<>])=\s*$/.test(lineText);
+      if ((singleEq || lineText.endsWith('<-') || lineText.endsWith('->'))) {
+        const isInsideParens = this.isInsideParentheses(document, position);
+        return !isInsideParens; // Top-level only when outside parentheses
+      }
     }
     
     return false;

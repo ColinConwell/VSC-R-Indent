@@ -12,7 +12,11 @@
     "build:vsix": "npm run compile && npx --yes @vscode/vsce package --no-dependencies --out vsc-r-indent.vsix",
     "vscode:prepublish": "npm run compile",
     "install:local": "bash ./scripts/install-local.sh",
-    "install:cursor": "bash ./scripts/install-local.sh --cursor"
+    "install:cursor": "bash ./scripts/install-local.sh --cursor",
+    "test:unit": "TS_NODE_PROJECT=tsconfig.tests.json mocha -r ts-node/register -r tsconfig-paths/register tests/unit/**/*.ts && mocha tests/headless-js/**/*.js",
+    "test:integration": "node ./out/tests/integration/runTest.js",
+    "pretest": "npm run compile",
+    "test": "npm run test:unit"
   },
   "repository": {
     "type": "git",
@@ -31,19 +35,19 @@
     "onLanguage:r"
   ],
   "contributes": {
-
     "keybindings": [
       {
         "command": "type",
         "key": "enter",
         "when": "textInputFocus && editorLangId == 'r' && !editorReadonly && !suggestWidgetVisible",
-        "args": { "text": "\n" }
+        "args": {
+          "text": "\n"
+        }
       }
     ],
     "configuration": {
       "title": "R Indent",
       "properties": {
-
         "rIndent.indentSize": {
           "type": "number",
           "default": 2,
@@ -63,10 +67,20 @@
     }
   },
   "devDependencies": {
+    "@types/chai": "^5.2.2",
+    "@types/glob": "^8.1.0",
+    "@types/mocha": "^10.0.10",
     "@types/node": "^20.19.11",
     "@types/vscode": "^1.95.0",
-    "typescript": "^5.9.2",
-    "@vscode/vsce": "^3.21.0"
+    "@vscode/test-electron": "^2.4.1",
+    "chai": "^4.5.0",
+    "esmock": "^2.7.3",
+    "glob": "^11.0.3",
+    "mocha": "^10.7.3",
+    "mock-require": "^3.0.3",
+    "ts-node": "^10.9.2",
+    "tsconfig-paths": "^4.2.0",
+    "typescript": "^5.9.2"
   },
   "bugs": {
     "url": "https://github.com/ColinConwell/VSC-R-Indent/issues"
