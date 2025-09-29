@@ -11,6 +11,11 @@ export interface RIndentConfig {
   
   /** Enable debug logging for development */
   enableDebugLogging: boolean;
+
+  /** Indentation engine mode */
+  engine?: 'rules' | 'context' | 'air' | 'ast';
+  /** Optional path to Air executable when engine = 'air' and strategy is path */
+  airExecutablePath?: string;
 }
 
 export interface IndentationContext {

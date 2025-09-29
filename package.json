@@ -13,7 +13,7 @@
     "vscode:prepublish": "npm run compile",
     "install:local": "bash ./scripts/install-local.sh",
     "install:cursor": "bash ./scripts/install-local.sh --cursor",
-    "test:unit": "TS_NODE_PROJECT=tsconfig.tests.json mocha -r ts-node/register -r tsconfig-paths/register tests/unit/**/*.ts && mocha tests/headless-js/**/*.js",
+    "test:unit": "TS_NODE_PROJECT=tsconfig.tests.json mocha -r ts-node/register -r tsconfig-paths/register tests/unit/**/*.ts && mocha tests/headless-js/**/*.js && mocha tests/performance/**/*.js",
     "test:integration": "node ./out/tests/integration/runTest.js",
     "pretest": "npm run compile",
     "test": "npm run test:unit"
@@ -43,6 +43,11 @@
         "args": {
           "text": "\n"
         }
+      },
+      {
+        "command": "rIndent.toggleEngine",
+        "key": "cmd+shift+9",
+        "when": "editorLangId == 'r' && !editorReadonly"
       }
     ],
     "configuration": {
@@ -62,6 +67,17 @@
           "type": "boolean",
           "default": false,
           "description": "Enable structured debug logging"
+        },
+        "rIndent.engine": {
+          "type": "string",
+          "enum": ["rules", "context", "air", "ast"],
+          "default": "rules",
+          "markdownDescription": "Select indentation engine: rules (current), context (planned parser), air (use Air formatter for on-type slice), ast (TypeScript AST-based emulation of Air style)."
+        },
+        "rIndent.airExecutablePath": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Optional path to Air executable when using engine=air (overrides environment)."
         }
       }
     }

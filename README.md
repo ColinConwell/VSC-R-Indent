@@ -78,6 +78,8 @@ Access settings via `Preferences > Settings > Extensions > R Indent`:
 | `indentSize` | `2` | Base indentation size for all operations (operator chains, brackets, etc.) |
 | `alignFunctionArguments` | `true` | Align function args to opening parentheses |
 | `enableDebugLogging` | `false` | Enable structured debug logging (Auto-Indent Check and Applied logs) |
+| `engine` | `rules` | Indentation engine: `rules` (default), `ast`, or `air` (experimental) |
+| `airExecutablePath` | `` | Optional absolute path to `air` binary for `engine = "air"` |
 
 ### Example Configuration
 
@@ -85,9 +87,26 @@ Access settings via `Preferences > Settings > Extensions > R Indent`:
 {
   "rIndent.indentSize": 2,
   "rIndent.alignFunctionArguments": true,
-  "rIndent.enableDebugLogging": false
+  "rIndent.enableDebugLogging": false,
+  "rIndent.engine": "rules"
 }
 ```
+
+## Engines
+
+### Rules (default)
+- Priority-based, cooperative rules implemented in TypeScript
+- Fast and robust; emulates RStudio behavior across common scenarios
+
+### AST
+- Lightweight AST-like parsing to improve context decisions
+- Adds cases for commas, parameter alignment, line-start operators, mixed bracket/pipe chains
+- Comparable performance to Rules, helpful on complex nesting
+
+### Air (experimental)
+- Uses `posit-dev/air` formatter on a small slice for on-type indentation
+- Configure with `"rIndent.engine": "air"` and (optionally) `"rIndent.airExecutablePath"`
+- Best parity with Air/RStudio formatting but slower for on-type; recommended to try and switch back if performance is a concern
 
 ## Installation
 

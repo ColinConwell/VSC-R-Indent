@@ -192,6 +192,17 @@ export function activate(context: vscode.ExtensionContext): void {
   );
 
   context.subscriptions.push(disposable, typeHandler);
+
+  // Command to cycle indentation engine modes for quick comparison
+  const toggleEngineCmd = vscode.commands.registerCommand('rIndent.toggleEngine', async () => {
+    const cfg = vscode.workspace.getConfiguration('rIndent');
+    const current = cfg.get<string>('engine', 'rules');
+    const order = ['rules', 'ast', 'air'];
+    const next = order[(order.indexOf(current) + 1) % order.length];
+    await cfg.update('engine', next, vscode.ConfigurationTarget.Global);
+    vscode.window.showInformationMessage(`R Indent engine set to: ${next}`);
+  });
+  context.subscriptions.push(toggleEngineCmd);
 }
 
 export function deactivate(): void {
