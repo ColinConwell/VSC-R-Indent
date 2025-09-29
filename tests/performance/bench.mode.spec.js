@@ -69,9 +69,9 @@ describe('Perf (real Air if available)', function() {
 
   it('reports table for rules vs air', () => {
     const scenarios = [
-      { name: 'param value', code: 'f(a =', line: 0, colOff: 0, iters: 200 },
-      { name: 'pipe chain', code: 'mtcars %>%\n  filter(mpg > 20) %>%', line: 1, colOff: 0, iters: 200 },
-      { name: 'ggplot + pipes', code: 'ggplot(mtcars, aes(x, y)) +\n  geom_point() %>%', line: 1, colOff: 0, iters: 200 },
+      { name: 'Paramter Value', code: 'f(a =', line: 0, colOff: 0, iters: 200 },
+      { name: 'Pipe Chain', code: 'mtcars %>%\n  filter(mpg > 20) %>%', line: 1, colOff: 0, iters: 200 },
+      { name: 'ggplot + Pipes', code: 'ggplot(mtcars, aes(x, y)) +\n  geom_point() %>%', line: 1, colOff: 0, iters: 200 },
     ];
 
     const rows = [];

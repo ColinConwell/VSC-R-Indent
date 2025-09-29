@@ -16,6 +16,9 @@ export interface RIndentConfig {
   engine?: 'rules' | 'context' | 'air' | 'ast';
   /** Optional path to Air executable when engine = 'air' and strategy is path */
   airExecutablePath?: string;
+
+  /** Show engine in status bar and allow toggle */
+  showStatusBar?: boolean;
 }
 
 export interface IndentationContext {

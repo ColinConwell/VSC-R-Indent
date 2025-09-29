@@ -121,6 +121,9 @@ export class IndentationEngine {
       const lines: string[] = [];
       for (let i = startLine; i <= endLine; i++) lines.push(document.lineAt(i).text);
       const sliceText = lines.join('\n');
+      if (this.config.enableDebugLogging) {
+        DebugLogger.log(`[AIR] Formatting slice lines ${startLine}-${endLine} (isEnter=${isEnterKey}${triggerChar ? ", ch='" + triggerChar + "'" : ''})`);
+      }
       const formatted = AirRunner.formatSliceSync(sliceText + (isEnterKey ? '\n' : ''), {
         executablePath: this.config.airExecutablePath || undefined,
         cwd: undefined,
@@ -132,7 +135,12 @@ export class IndentationEngine {
       if (relativeLine < 0 || relativeLine >= formattedLines.length) return null;
       const targetLine = formattedLines[relativeLine] ?? '';
       const indentMatch = targetLine.match(/^\s*/);
-      return indentMatch ? indentMatch[0] : '';
+      const indent = indentMatch ? indentMatch[0] : '';
+      if (this.config.enableDebugLogging) {
+        DebugLogger.log(`[AIR] Applied indent length=${indent.length} at line ${position.line + 1}`);
+      }
+      this.lastAppliedRule = 'AirSlice';
+      return indent;
     } catch { return null; }
   }
   

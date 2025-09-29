@@ -29,6 +29,7 @@ export class ConfigurationManager {
       enableDebugLogging: config.get('enableDebugLogging', DEFAULT_CONFIG.enableDebugLogging),
       engine: config.get<'rules'|'context'|'air'>('engine', DEFAULT_CONFIG.engine as 'rules'|'context'|'air'),
       airExecutablePath: config.get<string>('airExecutablePath', ''),
+      showStatusBar: config.get<boolean>('showStatusBar', false),
     };
   }
   

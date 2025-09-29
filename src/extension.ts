@@ -1,8 +1,10 @@
 import * as vscode from 'vscode';
 import { IndentationEngine } from './indentation/indentationEngine.js';
 import { DebugLogger } from './utils/debugUtils.js';
+import { ConfigurationManager } from './config/settings.js';
 
 let indentationEngine: IndentationEngine;
+let statusBarItem: vscode.StatusBarItem | null = null;
 
 /**
  * Check if this is an empty bracket case where VSCode should handle formatting
@@ -78,6 +80,8 @@ export function activate(context: vscode.ExtensionContext): void {
   // Initialize the indentation engine and debug logger
   indentationEngine = new IndentationEngine();
   DebugLogger.initialize();
+  const cfgManager = ConfigurationManager.getInstance();
+  const cfg = cfgManager.getConfig();
   
   // Extension initialization logged by DebugLogger.initialize()
   
@@ -201,13 +205,78 @@ export function activate(context: vscode.ExtensionContext): void {
     const next = order[(order.indexOf(current) + 1) % order.length];
     await cfg.update('engine', next, vscode.ConfigurationTarget.Global);
     vscode.window.showInformationMessage(`R Indent engine set to: ${next}`);
+    updateStatusBar(next);
   });
   context.subscriptions.push(toggleEngineCmd);
+
+  // Command: Show recent debug logs
+  const showLogsCmd = vscode.commands.registerCommand('rIndent.showRecentLogs', async () => {
+    // The output channel is already initialized; bringing it to front is enough
+    vscode.window.showInformationMessage('Opening R Indent output channel...');
+    // There is no dedicated show method on DebugLogger; use VSCode output channels UI
+    // We trigger a no-op log to ensure channel is visible when debug logging is disabled
+    DebugLogger.log('');
+  });
+  context.subscriptions.push(showLogsCmd);
+
+  // Command: Toggle debug logging
+  const toggleDebugCmd = vscode.commands.registerCommand('rIndent.toggleDebugLogging', async () => {
+    const cfg = vscode.workspace.getConfiguration('rIndent');
+    const current = cfg.get<boolean>('enableDebugLogging', false);
+    const next = !current;
+    await cfg.update('enableDebugLogging', next, vscode.ConfigurationTarget.Global);
+    vscode.window.showInformationMessage(`R Indent debug logging: ${next ? 'ON' : 'OFF'}`);
+  });
+  context.subscriptions.push(toggleDebugCmd);
+
+  // Optional status bar item
+  if (cfg.showStatusBar) {
+    initStatusBar(cfg.engine || 'rules', context);
+  }
+
+  // React to configuration changes (show/hide status bar)
+  context.subscriptions.push(
+    vscode.workspace.onDidChangeConfiguration((event) => {
+      if (event.affectsConfiguration('rIndent.showStatusBar') || event.affectsConfiguration('rIndent.engine')) {
+        const cfg = ConfigurationManager.getInstance().getConfig();
+        if (cfg.showStatusBar) {
+          initStatusBar(cfg.engine || 'rules', context);
+        } else {
+          disposeStatusBar();
+        }
+      }
+    })
+  );
 }
 
 export function deactivate(): void {
   // Clean up resources
   DebugLogger.dispose();
+  disposeStatusBar();
+}
+
+function initStatusBar(engine: string, context: vscode.ExtensionContext) {
+  if (!statusBarItem) {
+    statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
+    statusBarItem.command = 'rIndent.toggleEngine';
+    context.subscriptions.push(statusBarItem);
+  }
+  statusBarItem.text = `R Indent: ${engine}`;
+  statusBarItem.tooltip = 'Click to cycle indentation engine';
+  statusBarItem.show();
+}
+
+function updateStatusBar(engine: string) {
+  if (statusBarItem) {
+    statusBarItem.text = `R Indent: ${engine}`;
+  }
+}
+
+function disposeStatusBar() {
+  if (statusBarItem) {
+    statusBarItem.dispose();
+    statusBarItem = null;
+  }
 }
 
 

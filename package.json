@@ -15,8 +15,7 @@
     "install:cursor": "bash ./scripts/install-local.sh --cursor",
     "test:unit": "TS_NODE_PROJECT=tsconfig.tests.json mocha -r ts-node/register -r tsconfig-paths/register tests/unit/**/*.ts && mocha tests/headless-js/**/*.js && mocha tests/performance/**/*.js",
     "test:integration": "node ./out/tests/integration/runTest.js",
-    "pretest": "npm run compile",
-    "test": "npm run test:unit"
+    "test:performance": "mocha tests/performance/**/*.js"
   },
   "repository": {
     "type": "git",
@@ -35,6 +34,16 @@
     "onLanguage:r"
   ],
   "contributes": {
+    "commands": [
+      {
+        "command": "rIndent.showRecentLogs",
+        "title": "R Indent: Show Recent Logs"
+      },
+      {
+        "command": "rIndent.toggleDebugLogging",
+        "title": "R Indent: Toggle Debug Logging"
+      }
+    ],
     "keybindings": [
       {
         "command": "type",
@@ -67,6 +76,11 @@
           "type": "boolean",
           "default": false,
           "description": "Enable structured debug logging"
+        },
+        "rIndent.showStatusBar": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Show current engine in the status bar (click to toggle). Off by default."
         },
         "rIndent.engine": {
           "type": "string",
