@@ -4,7 +4,7 @@
   "description": "On-type indentation adjustments for R",
   "displayName": "R Indent",
   "icon": "R-Indent.png",
-  "main": "./out/extension.js",
+  "main": "./out/src/extension.js",
   "publisher": "ColinConwell",
   "scripts": {
     "compile": "tsc -p .",
