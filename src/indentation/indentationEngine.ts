@@ -8,9 +8,9 @@ import { ConfigurationManager } from '../config/settings.js';
 import { DebugLogger } from '../utils/debugUtils.js';
 import { BracketAlignmentRule, HangingIndentRule, ClosingBracketRule, ClosingBracketContextRule } from '../rules/BracketRules.js';
 import { ParameterAssignmentRule } from '../rules/ParameterRules.js';
-// Removed PipeChain rules - now handled by OperatorChain
-// Removed PlusChain rules - now handled by OperatorChain
 import { OperatorChainRule } from '../rules/OperatorChainRules.js';
+import { AirRunner } from './airRunner.js';
+import { AirAstAlignmentRule, AirAstContinuationRule, AirAstParameterRule, AirAstCommaAlignRule, AirAstLineStartOpRule } from '../rules/AirASTRules.js';
 
 export class IndentationEngine {
   private rules: IndentationRule[] = [];
@@ -27,23 +27,36 @@ export class IndentationEngine {
     // Watch for configuration changes
     this.configManager.onConfigurationChanged((newConfig) => {
       this.config = newConfig;
+      this.initializeRules();
     });
   }
   
   private initializeRules(): void {
-    this.rules = [
-      // General operator chain rules (highest priority - handles all operators)
-      new OperatorChainRule(),
-      
-      // Parameter assignment rules (higher than bracket alignment)
-      new ParameterAssignmentRule(),
-      
-      // Bracket rules
-      new BracketAlignmentRule(),
-      new HangingIndentRule(),
-      new ClosingBracketContextRule(), // About to close function call
-      new ClosingBracketRule(),
-    ];
+    if (this.config.engine === 'ast') {
+      this.rules = [
+        new AirAstAlignmentRule(),
+        new AirAstCommaAlignRule(),
+        new AirAstParameterRule(),
+        new AirAstContinuationRule(),
+        new AirAstLineStartOpRule(),
+        new ClosingBracketContextRule(),
+        new ClosingBracketRule(),
+      ];
+    } else {
+      this.rules = [
+        // General operator chain rules (highest priority - handles all operators)
+        new OperatorChainRule(),
+        
+        // Parameter assignment rules (higher than bracket alignment)
+        new ParameterAssignmentRule(),
+        
+        // Bracket rules
+        new BracketAlignmentRule(),
+        new HangingIndentRule(),
+        new ClosingBracketContextRule(), // About to close function call
+        new ClosingBracketRule(),
+      ];
+    }
     
     // Sort rules by priority (highest first)
     this.rules.sort((a, b) => b.priority - a.priority);
@@ -56,6 +69,11 @@ export class IndentationEngine {
     document: vscode.TextDocument,
     position: vscode.Position
   ): string | null {
+    const cfg = this.getConfig();
+    if (cfg.engine === 'air') {
+      const result = this.calculateWithAir(document, position, true);
+      if (result !== null) return result;
+    }
     const context = this.createContext(document, position, true);
     return this.applyRules(context);
   }
@@ -68,8 +86,62 @@ export class IndentationEngine {
     position: vscode.Position,
     character: string
   ): string | null {
+    const cfg = this.getConfig();
+    if (cfg.engine === 'air') {
+      const result = this.calculateWithAir(document, position, false, character);
+      if (result !== null) return result;
+    }
+    // Handle on-type closing bracket dedent directly
+    if (/^[)\]}]$/.test(character)) {
+      const opener = this.findNearestOpeningBracket(document, position);
+      if (opener) {
+        const openerLine = document.lineAt(opener.line);
+        const baseIndent = openerLine.text.match(/^\s*/)?.[0] ?? '';
+        return baseIndent;
+      }
+      // If no opener found, fall through to rule-based handling
+    }
+
     const context = this.createContext(document, position, false, character);
     return this.applyRules(context);
+  }
+
+  /**
+   * Air-backed indentation: format a small slice and infer indent
+   */
+  private calculateWithAir(
+    document: vscode.TextDocument,
+    position: vscode.Position,
+    isEnterKey: boolean,
+    triggerChar?: string
+  ): string | null {
+    try {
+      const startLine = Math.max(0, position.line - 20);
+      const endLine = Math.min(document.lineCount - 1, position.line + 5);
+      const lines: string[] = [];
+      for (let i = startLine; i <= endLine; i++) lines.push(document.lineAt(i).text);
+      const sliceText = lines.join('\n');
+      if (this.config.enableDebugLogging) {
+        DebugLogger.log(`[AIR] Formatting slice lines ${startLine}-${endLine} (isEnter=${isEnterKey}${triggerChar ? ", ch='" + triggerChar + "'" : ''})`);
+      }
+      const formatted = AirRunner.formatSliceSync(sliceText + (isEnterKey ? '\n' : ''), {
+        executablePath: this.config.airExecutablePath || undefined,
+        cwd: undefined,
+        timeoutMs: 200,
+      });
+      if (!formatted) return null;
+      const relativeLine = position.line - startLine + (isEnterKey ? 1 : 0);
+      const formattedLines = formatted.split(/\r?\n/);
+      if (relativeLine < 0 || relativeLine >= formattedLines.length) return null;
+      const targetLine = formattedLines[relativeLine] ?? '';
+      const indentMatch = targetLine.match(/^\s*/);
+      const indent = indentMatch ? indentMatch[0] : '';
+      if (this.config.enableDebugLogging) {
+        DebugLogger.log(`[AIR] Applied indent length=${indent.length} at line ${position.line + 1}`);
+      }
+      this.lastAppliedRule = 'AirSlice';
+      return indent;
+    } catch { return null; }
   }
   
   private createContext(
@@ -201,6 +273,51 @@ export class IndentationEngine {
     this.rules.sort((a, b) => b.priority - a.priority);
   }
   
+  /**
+   * Find the nearest unmatched opening bracket to the left of the given position
+   * (scans backward across lines, pairing brackets as encountered)
+   */
+  private findNearestOpeningBracket(
+    document: vscode.TextDocument,
+    position: vscode.Position
+  ): { line: number; column: number; bracketType: '(' | '[' | '{' } | null {
+    let bracketStack: Array<{ type: string; line: number; column: number }> = [];
+    let currentLine = position.line;
+    let currentColumn = position.character;
+
+    while (currentLine >= 0) {
+      const line = document.lineAt(currentLine);
+      const lineText = line.text;
+      const searchEnd = currentLine === position.line ? currentColumn : lineText.length;
+
+      for (let col = searchEnd - 1; col >= 0; col--) {
+        const char = lineText[col];
+        if (char === ')' || char === ']' || char === '}') {
+          bracketStack.push({ type: char, line: currentLine, column: col });
+        } else if (char === '(' || char === '[' || char === '{') {
+          if (bracketStack.length > 0) {
+            const last = bracketStack[bracketStack.length - 1];
+            const matching = (char === '(' && last.type === ')') ||
+                             (char === '[' && last.type === ']') ||
+                             (char === '{' && last.type === '}');
+            if (matching) {
+              bracketStack.pop();
+            } else {
+              // Different kind of bracket encountered; continue scanning
+            }
+          } else {
+            return { line: currentLine, column: col, bracketType: char as '(' | '[' | '{' };
+          }
+        }
+      }
+
+      currentLine--;
+      currentColumn = 0;
+    }
+
+    return null;
+  }
+
   
   /**
    * Calculate proximity-based additive indentation by combining rules in context layers
@@ -262,13 +379,13 @@ export class IndentationEngine {
     let appliedRules: string[] = [];
     const layerContributions: Array<{layer: string; rules: string[]; indent: number}> = [];
     
-    // Find if we have a base position provider (BracketAlignment)
-    const bracketRule = positiveRules.find(r => r.name === 'BracketAlignment');
+    // Find if we have a base position provider (BracketAlignment or AirAstAlignment)
+    const bracketRule = positiveRules.find(r => r.name === 'BracketAlignment' || r.name === 'AirAstAlignment');
     const basePosition = bracketRule ? bracketRule.indentSize : 0;
     
     // Layer 1: Immediate context (parameter assignment, operator continuation)
     const immediateRules = positiveRules.filter(r => 
-      r.name === 'ParameterAssignment' || r.name === 'OperatorChain'
+      r.name === 'ParameterAssignment' || r.name === 'AirAstParameter' || r.name === 'OperatorChain' || r.name === 'AirAstContinuation' || r.name === 'AirAstCommaAlign' || r.name === 'AirAstLineStartOp'
     );
     let immediateIndent = 0;
     const immediateRuleNames: string[] = [];

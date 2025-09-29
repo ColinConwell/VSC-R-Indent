@@ -5,6 +5,7 @@
 import * as vscode from 'vscode';
 import { BaseRule } from './BaseRule.js';
 import { IndentationContext, RIndentConfig } from '../config/types.js';
+import { isParameterAssignmentBeforeCursor } from '../utils/rSyntaxUtils.js';
 
 export class ParameterAssignmentRule extends BaseRule {
   constructor() {
@@ -23,10 +24,8 @@ export class ParameterAssignmentRule extends BaseRule {
     // This happens when the current line (after Enter key split) will end with =
     
     const currentLine = document.lineAt(context.line);
-    const textBeforeCursor = currentLine.text.substring(0, context.column).trimEnd();
-    
-    // ONLY apply when the line we're leaving ends with = (indenting the parameter value)
-    return textBeforeCursor.endsWith('=');
+    const textBeforeCursor = currentLine.text.substring(0, context.column);
+    return isParameterAssignmentBeforeCursor(textBeforeCursor);
   }
   
   public getIndentation(context: IndentationContext, config: RIndentConfig): string | null {

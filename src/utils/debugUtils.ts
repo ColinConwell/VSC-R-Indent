@@ -8,6 +8,7 @@ import { ConfigurationManager } from '../config/settings.js';
 export class DebugLogger {
   private static outputChannel: vscode.OutputChannel | null = null;
   private static configManager = ConfigurationManager.getInstance();
+  private static lastBuffer: string[] = [];
 
   /**
    * Initialize the output channel
@@ -49,7 +50,17 @@ export class DebugLogger {
     const config = this.configManager.getConfig();
     if (config.enableDebugLogging && this.outputChannel) {
       this.outputChannel.appendLine(message);
+      // keep a small rolling buffer for tests to inspect
+      this.lastBuffer.push(message);
+      if (this.lastBuffer.length > 200) this.lastBuffer.shift();
     }
+  }
+
+  /**
+   * Expose recent logs (useful for automated tests)
+   */
+  public static getRecentLogs(): string[] {
+    return [...this.lastBuffer];
   }
 
   /**

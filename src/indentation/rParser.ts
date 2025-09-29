@@ -86,7 +86,10 @@ export class RParser {
         break; // Rest of line is comment
       }
       
-      // Handle brackets
+      // Handle brackets (ignore when in comment)
+      if (inComment) {
+        continue;
+      }
       if (char in this.BRACKET_PAIRS) {
         const bracketType = char as '(' | '[' | '{';
         const bracket: BracketMatch = {

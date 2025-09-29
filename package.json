@@ -4,7 +4,7 @@
   "description": "On-type indentation adjustments for R",
   "displayName": "R Indent",
   "icon": "R-Indent.png",
-  "main": "./out/extension.js",
+  "main": "./out/src/extension.js",
   "publisher": "ColinConwell",
   "scripts": {
     "compile": "tsc -p .",
@@ -12,7 +12,10 @@
     "build:vsix": "npm run compile && npx --yes @vscode/vsce package --no-dependencies --out vsc-r-indent.vsix",
     "vscode:prepublish": "npm run compile",
     "install:local": "bash ./scripts/install-local.sh",
-    "install:cursor": "bash ./scripts/install-local.sh --cursor"
+    "install:cursor": "bash ./scripts/install-local.sh --cursor",
+    "test:unit": "TS_NODE_PROJECT=tsconfig.tests.json mocha -r ts-node/register -r tsconfig-paths/register tests/unit/**/*.ts && mocha tests/headless-js/**/*.js && mocha tests/performance/**/*.js",
+    "test:integration": "node ./out/tests/integration/runTest.js",
+    "test:performance": "mocha tests/performance/**/*.js"
   },
   "repository": {
     "type": "git",
@@ -31,19 +34,34 @@
     "onLanguage:r"
   ],
   "contributes": {
-
+    "commands": [
+      {
+        "command": "rIndent.showRecentLogs",
+        "title": "R Indent: Show Recent Logs"
+      },
+      {
+        "command": "rIndent.toggleDebugLogging",
+        "title": "R Indent: Toggle Debug Logging"
+      }
+    ],
     "keybindings": [
       {
         "command": "type",
         "key": "enter",
         "when": "textInputFocus && editorLangId == 'r' && !editorReadonly && !suggestWidgetVisible",
-        "args": { "text": "\n" }
+        "args": {
+          "text": "\n"
+        }
+      },
+      {
+        "command": "rIndent.toggleEngine",
+        "key": "cmd+shift+9",
+        "when": "editorLangId == 'r' && !editorReadonly"
       }
     ],
     "configuration": {
       "title": "R Indent",
       "properties": {
-
         "rIndent.indentSize": {
           "type": "number",
           "default": 2,
@@ -58,15 +76,41 @@
           "type": "boolean",
           "default": false,
           "description": "Enable structured debug logging"
+        },
+        "rIndent.showStatusBar": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Show current engine in the status bar (click to toggle). Off by default."
+        },
+        "rIndent.engine": {
+          "type": "string",
+          "enum": ["rules", "context", "air", "ast"],
+          "default": "rules",
+          "markdownDescription": "Select indentation engine: rules (current), context (planned parser), air (use Air formatter for on-type slice), ast (TypeScript AST-based emulation of Air style)."
+        },
+        "rIndent.airExecutablePath": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Optional path to Air executable when using engine=air (overrides environment)."
         }
       }
     }
   },
   "devDependencies": {
+    "@types/chai": "^5.2.2",
+    "@types/glob": "^8.1.0",
+    "@types/mocha": "^10.0.10",
     "@types/node": "^20.19.11",
     "@types/vscode": "^1.95.0",
-    "typescript": "^5.9.2",
-    "@vscode/vsce": "^3.21.0"
+    "@vscode/test-electron": "^2.4.1",
+    "chai": "^4.5.0",
+    "esmock": "^2.7.3",
+    "glob": "^11.0.3",
+    "mocha": "^10.7.3",
+    "mock-require": "^3.0.3",
+    "ts-node": "^10.9.2",
+    "tsconfig-paths": "^4.2.0",
+    "typescript": "^5.9.2"
   },
   "bugs": {
     "url": "https://github.com/ColinConwell/VSC-R-Indent/issues"

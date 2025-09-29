@@ -1,6 +1,6 @@
 # R Indent - VSCode Extension
 
-Intelligent auto-indentation for R that emulates RStudio's indentation behavior in Visual Studio Code and Cursor.
+Intelligent auto-indentation for R that emulates RStudio's indentation behavior in VSCode and CodeOSS IDEs (e.g. Cursor, Positron).
 
 ## Features
 
@@ -78,6 +78,9 @@ Access settings via `Preferences > Settings > Extensions > R Indent`:
 | `indentSize` | `2` | Base indentation size for all operations (operator chains, brackets, etc.) |
 | `alignFunctionArguments` | `true` | Align function args to opening parentheses |
 | `enableDebugLogging` | `false` | Enable structured debug logging (Auto-Indent Check and Applied logs) |
+| `engine` | `rules` | Indentation engine: `rules` (default), `ast`, or `air` (experimental) |
+| `airExecutablePath` | `` | Optional absolute path to `air` binary for `engine = "air"` |
+| `showStatusBar` | `false` | Show current engine in status bar (click to toggle). Off by default |
 
 ### Example Configuration
 
@@ -85,9 +88,32 @@ Access settings via `Preferences > Settings > Extensions > R Indent`:
 {
   "rIndent.indentSize": 2,
   "rIndent.alignFunctionArguments": true,
-  "rIndent.enableDebugLogging": false
+  "rIndent.enableDebugLogging": false,
+  "rIndent.engine": "rules"
 }
 ```
+
+## Engines
+
+### Rules (default mode)
+- Priority-based, cooperative rules implemented in TypeScript
+- Fast and robust; emulates RStudio behavior across common scenarios
+
+### AST (experimental)
+- Lightweight AST-like parsing to improve context decisions
+- Adds cases for commas, parameter alignment, line-start operators, mixed bracket/pipe chains
+- Comparable performance to Rules, helpful on complex nesting
+
+### [Air](https://github.com/posit-dev/air) (experimental)
+- Uses `posit-dev/air` formatter on a small slice for on-type indentation
+- Configure with `"rIndent.engine": "air"` and (optionally) `"rIndent.airExecutablePath"`
+- Best parity with Air/RStudio formatting but slower for on-type; recommended to try and switch back if performance is a concern
+
+## Commands
+
+- R Indent: Toggle Engine (`rIndent.toggleEngine`)
+- R Indent: Show Recent Logs (`rIndent.showRecentLogs`)
+- R Indent: Toggle Debug Logging (`rIndent.toggleDebugLogging`)
 
 ## Installation
 
@@ -111,8 +137,8 @@ bash ./scripts/install-local.sh --cursor
 
 ### Setup
 ```bash
-npm install              # Install dependencies
-npm run compile          # Build once
+npm install             # Install dependencies
+npm run compile         # Build once
 npm run watch           # Watch for changes
 ```
 
@@ -124,29 +150,40 @@ npm run watch           # Watch for changes
 ### Project Structure
 ```
 src/
-├── config/                    # Configuration management
-│   ├── defaults.ts            # Default configuration values
-│   ├── settings.ts            # VSCode settings integration
-│   └── types.ts               # Type definitions
-├── indentation/               # Core indentation engine
-│   ├── indentationEngine.ts   # Main engine with proximity-based rules
-│   └── rParser.ts             # R syntax parsing utilities
-├── rules/                     # Indentation rules (priority-based)
-│   ├── BaseRule.ts            # Abstract base class for all rules
-│   ├── OperatorChainRules.ts  # Operator chains (priority 120)
-│   ├── ParameterRules.ts      # Parameter assignments (priority 110)
-│   └── BracketRules.ts        # Bracket alignment & closing rules (100-80)
-├── utils/                     # Debug utilities
-│   └── debugUtils.ts          # Structured debug logging
-└── extension.ts               # Main extension entry point
+├── config/                       # Configuration management
+│   ├── defaults.ts               # Default configuration values
+│   ├── settings.ts               # VSCode settings integration
+│   └── types.ts                  # Type definitions
+├── indentation/                  # Engines and parsers
+│   ├── indentationEngine.ts      # Main engine (rules/ast/air) + cooperative logic
+│   ├── rParser.ts                # Lightweight R scanning (brackets, comments)
+│   ├── rASTParser.ts             # AST-like window parser for AST mode
+│   └── airRunner.ts              # Slice-based AIR CLI integration
+├── rules/                        # Indentation rules (priority-based)
+│   ├── BaseRule.ts               # Abstract base
+│   ├── OperatorChainRules.ts     # Operator chains
+│   ├── ParameterRules.ts         # Parameter assignment
+│   ├── BracketRules.ts           # Bracket alignment & closing
+│   └── AirASTRules.ts            # AST mode rules (AIR stylization inspired)
+├── utils/
+│   └── debugUtils.ts             # Structured debug logging (toggleable)
+└── extension.ts                  # Entry point (commands, status bar, providers)
 
 tests/
-├── unit/                     # Unit test framework
-│   ├── testFramework.ts      # Testing utilities
-│   ├── bracketTests.ts       # Bracket alignment tests
-│   └── pipeTests.ts          # Operator chain tests
-├── manual_indent_test.R      # Main test file
-└── comprehensive_test.R      # Extended test scenarios
+├── unit/                         # TypeScript unit tests
+│   ├── testFramework.ts
+│   ├── bracketTests.ts
+│   └── pipeTests.ts
+├── headless-js/                  # Headless engine tests (mocked vscode)
+│   └── engineAstMode.spec.js     # AST coverage, plus others
+├── performance/                  # Perf benchmarks (rules vs ast vs air)
+│   └── bench.air.spec.js
+├── integration/                  # VS Code host integration tests (CI-focused)
+│   ├── runTest.ts
+│   └── suite/
+│       └── indentation.test.ts
+├── manual_indent_tests.R         # Manual scenarios
+└── comprehensive_test.R          # Extended scenarios
 ```
 
 ## Architecture
@@ -193,6 +230,7 @@ The extension uses a modular, proximity-based rule architecture:
 | Arithmetic operator chains | ✅ | ✅ |
 | Configurable behavior | Limited | ~ In Progress |
 | Works in Cursor IDE | ❌ | ✅ |
+| Works in Positron IDE | ❌ | ✅ |
 | Performance | Native | Fast (TypeScript) |
 
 

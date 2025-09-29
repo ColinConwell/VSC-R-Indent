@@ -27,6 +27,9 @@ export class ConfigurationManager {
       indentSize: config.get('indentSize', config.get('pipeIndentSize', DEFAULT_CONFIG.indentSize)),
       alignFunctionArguments: config.get('alignFunctionArguments', DEFAULT_CONFIG.alignFunctionArguments),
       enableDebugLogging: config.get('enableDebugLogging', DEFAULT_CONFIG.enableDebugLogging),
+      engine: config.get<'rules'|'context'|'air'>('engine', DEFAULT_CONFIG.engine as 'rules'|'context'|'air'),
+      airExecutablePath: config.get<string>('airExecutablePath', ''),
+      showStatusBar: config.get<boolean>('showStatusBar', false),
     };
   }
   

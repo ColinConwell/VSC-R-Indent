@@ -2,7 +2,7 @@
  * Test cases for bracket indentation rules
  */
 
-import { TestCase } from './testFramework.js';
+import { TestCase } from './testFramework';
 
 export const bracketTestCases: TestCase[] = [
   {

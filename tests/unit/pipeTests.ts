@@ -2,7 +2,7 @@
  * Test cases for pipe operator indentation rules
  */
 
-import { TestCase } from './testFramework.js';
+import { TestCase } from './testFramework';
 
 export const pipeTestCases: TestCase[] = [
   {
@@ -110,7 +110,7 @@ export const pipeConfigTestCases: TestCase[] = [
     },
     expected: '    ', // 4 spaces instead of default 2
     config: {
-      pipeIndentSize: 4,
+      pipeIndentSize: 4, // kept for backward-compat; mapped to indentSize internally
     },
   },
   
