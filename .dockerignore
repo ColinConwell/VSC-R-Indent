@@ -1,0 +1,5 @@
+**
+!container/**
+!artifacts/rstudio-indent.vsix
+!tests/manual_indent_tests.R
+!tests/comprehensive_test.R

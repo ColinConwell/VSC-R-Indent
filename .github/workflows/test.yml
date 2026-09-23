@@ -1,18 +1,52 @@
-name: test
+name: Extension Checks
 
 on:
   push:
   pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
-  test:
+  package:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version-file: .nvmrc
+          cache: npm
       - run: npm ci
-      - run: xvfb-run -a npm run test
+      - run: npm run format:check
+      - run: npm test
+      - run: npm run test:performance
+      - run: npm audit --audit-level=moderate
+      - run: npm run build:vsix
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rstudio-indent-vsix
+          path: artifacts/rstudio-indent.vsix
+          if-no-files-found: error
 
-
+  browser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run sandbox:up
+      - run: docker compose up --wait --wait-timeout 60
+      - run: npm run sandbox:test
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-evidence
+          path: output/playwright/
+          if-no-files-found: ignore
+      - if: always()
+        run: docker compose down

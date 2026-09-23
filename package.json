@@ -1,34 +1,50 @@
 {
-  "name": "vsc-r-indent",
-  "version": "0.1.0",
-  "description": "On-type indentation adjustments for R",
-  "displayName": "R Indent",
+  "name": "rstudio-indent",
+  "version": "0.2.0",
+  "description": "RStudio-style indentation while typing R: aligned arguments, parameter values, and operator chains.",
+  "displayName": "RStudio Indent",
   "icon": "R-Indent.png",
-  "main": "./out/src/extension.js",
+  "main": "./out/extension.js",
   "publisher": "ColinConwell",
   "scripts": {
-    "compile": "tsc -p .",
+    "compile": "node scripts/build.cjs",
     "watch": "tsc -w -p .",
-    "build:vsix": "npm run compile && npx --yes @vscode/vsce package --no-dependencies --out vsc-r-indent.vsix",
     "vscode:prepublish": "npm run compile",
-    "install:local": "bash ./scripts/install-local.sh",
-    "install:cursor": "bash ./scripts/install-local.sh --cursor",
-    "test:unit": "TS_NODE_PROJECT=tsconfig.tests.json mocha -r ts-node/register -r tsconfig-paths/register tests/unit/**/*.ts && mocha tests/headless-js/**/*.js && mocha tests/performance/**/*.js",
-    "test:integration": "node ./out/tests/integration/runTest.js",
-    "test:performance": "mocha tests/performance/**/*.js"
+    "test": "npm run compile && npm run test:unit && npm run test:package",
+    "test:unit": "node --test tests/unit/*.test.cjs",
+    "test:performance": "node tests/performance/benchmark.cjs",
+    "test:package": "node scripts/check-package.cjs",
+    "build:vsix": "vsce package --no-dependencies --out artifacts/rstudio-indent.vsix",
+    "sandbox:up": "npm run build:vsix && docker compose up --build -d",
+    "sandbox:down": "docker compose down",
+    "sandbox:test": "node --test tests/browser/sandbox.test.cjs",
+    "format": "prettier --write \"src/**/*.ts\" \"scripts/**/*.cjs\" \"tests/**/*.cjs\"",
+    "format:check": "prettier --check \"src/**/*.ts\" \"scripts/**/*.cjs\" \"tests/**/*.cjs\""
   },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/ColinConwell/VSC-R-Indent.git"
   },
-  "keywords": [],
-  "author": "developer@dev.com",
-  "license": "MIT",
+  "keywords": [
+    "R",
+    "RStudio",
+    "indentation",
+    "alignment",
+    "Positron",
+    "Cursor"
+  ],
+  "author": {
+    "name": "Colin Conwell",
+    "email": "colinconwell@gmail.com",
+    "url": "https://github.com/ColinConwell"
+  },
+  "license": "GPL-3.0-only",
   "categories": [
     "Formatters"
   ],
   "engines": {
-    "vscode": "^1.95.0"
+    "vscode": "^1.95.0",
+    "node": ">=22"
   },
   "activationEvents": [
     "onLanguage:r"
@@ -36,84 +52,113 @@
   "contributes": {
     "commands": [
       {
+        "command": "rIndent.enter",
+        "title": "RStudio Indent: Insert Newline"
+      },
+      {
         "command": "rIndent.showRecentLogs",
-        "title": "R Indent: Show Recent Logs"
+        "title": "RStudio Indent: Show Logs"
       },
       {
         "command": "rIndent.toggleDebugLogging",
-        "title": "R Indent: Toggle Debug Logging"
+        "title": "RStudio Indent: Toggle Debug Logging"
+      },
+      {
+        "command": "rIndent.toggleEngine",
+        "title": "RStudio Indent: Explain Legacy Engine Settings"
       }
     ],
     "keybindings": [
       {
-        "command": "type",
+        "command": "rIndent.enter",
         "key": "enter",
-        "when": "textInputFocus && editorLangId == 'r' && !editorReadonly && !suggestWidgetVisible",
-        "args": {
-          "text": "\n"
-        }
-      },
-      {
-        "command": "rIndent.toggleEngine",
-        "key": "cmd+shift+9",
-        "when": "editorLangId == 'r' && !editorReadonly"
+        "when": "editorTextFocus && editorLangId == 'r' && !editorReadonly && !suggestWidgetVisible && !inSnippetMode && config.rIndent.enabled"
       }
     ],
     "configuration": {
-      "title": "R Indent",
+      "title": "RStudio Indent",
       "properties": {
         "rIndent.indentSize": {
-          "type": "number",
+          "type": "integer",
           "default": 2,
-          "description": "Number of spaces for base indentation (operator chains, brackets, etc.)"
+          "description": "Number of spaces for base indentation (operator chains, brackets, etc.)",
+          "minimum": 1,
+          "maximum": 16,
+          "scope": "language-overridable"
         },
         "rIndent.alignFunctionArguments": {
           "type": "boolean",
           "default": true,
-          "description": "Align function arguments to opening parenthesis"
+          "description": "Align function arguments to opening parenthesis",
+          "scope": "language-overridable"
         },
         "rIndent.enableDebugLogging": {
           "type": "boolean",
           "default": false,
-          "description": "Enable structured debug logging"
+          "description": "Enable structured debug logging",
+          "scope": "language-overridable"
         },
         "rIndent.showStatusBar": {
           "type": "boolean",
           "default": false,
-          "markdownDescription": "Show current engine in the status bar (click to toggle). Off by default."
+          "markdownDescription": "Show whether RStudio Indent is enabled. Click to open local diagnostic logs.",
+          "scope": "language-overridable"
         },
         "rIndent.engine": {
           "type": "string",
-          "enum": ["rules", "context", "air", "ast"],
+          "enum": [
+            "rules",
+            "air",
+            "ast"
+          ],
           "default": "rules",
-          "markdownDescription": "Select indentation engine: rules (current), context (planned parser), air (use Air formatter for on-type slice), ast (TypeScript AST-based emulation of Air style)."
+          "markdownDescription": "Legacy engine selection. All values now use the supported RStudio-style rules engine; no external executable is invoked.",
+          "deprecationMessage": "Air and AST have been consolidated into the rules engine.",
+          "scope": "language-overridable"
         },
         "rIndent.airExecutablePath": {
           "type": "string",
           "default": "",
-          "markdownDescription": "Optional path to Air executable when using engine=air (overrides environment)."
+          "markdownDescription": "Retained for settings compatibility. This value is ignored; no Air executable is invoked.",
+          "deprecationMessage": "Unused. RStudio Indent no longer executes Air.",
+          "scope": "machine"
+        },
+        "rIndent.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable RStudio-style Enter and closing-bracket indentation.",
+          "scope": "language-overridable"
         }
       }
+    },
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "rIndent.enter",
+          "when": "editorLangId == 'r'"
+        }
+      ]
     }
   },
   "devDependencies": {
-    "@types/chai": "^5.2.2",
-    "@types/glob": "^8.1.0",
-    "@types/mocha": "^10.0.10",
-    "@types/node": "^20.19.11",
-    "@types/vscode": "^1.95.0",
-    "@vscode/test-electron": "^2.4.1",
-    "chai": "^4.5.0",
-    "esmock": "^2.7.3",
-    "glob": "^11.0.3",
-    "mocha": "^10.7.3",
-    "mock-require": "^3.0.3",
-    "ts-node": "^10.9.2",
-    "tsconfig-paths": "^4.2.0",
-    "typescript": "^5.9.2"
+    "@types/node": "22.18.6",
+    "@types/vscode": "1.95.0",
+    "@vscode/vsce": "4.0.0",
+    "playwright": "1.63.0",
+    "prettier": "3.6.2",
+    "typescript": "5.9.3"
   },
   "bugs": {
     "url": "https://github.com/ColinConwell/VSC-R-Indent/issues"
   },
-  "homepage": "https://github.com/ColinConwell/VSC-R-Indent#readme"
+  "homepage": "https://github.com/ColinConwell/VSC-R-Indent#readme",
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": true
+    },
+    "virtualWorkspaces": true
+  },
+  "extensionKind": [
+    "workspace"
+  ]
 }

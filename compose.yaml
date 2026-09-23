@@ -1,0 +1,17 @@
+name: rstudio-indent
+services:
+  editor:
+    image: rstudio-indent-test-editor:local
+    build:
+      context: .
+      dockerfile: container/Dockerfile
+    ports:
+      - "127.0.0.1:${RSTUDIO_INDENT_PORT:-8788}:8080"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://127.0.0.1:8080/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    # No source mount, host credentials, Docker socket, or persistent service registration.
+    security_opt:
+      - no-new-privileges:true

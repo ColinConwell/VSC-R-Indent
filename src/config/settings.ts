@@ -1,91 +1,40 @@
-/**
- * Configuration management for R indent extension
- */
-
 import * as vscode from 'vscode';
-import { RIndentConfig } from './types.js';
-import { DEFAULT_CONFIG } from './defaults.js';
+import { normalizeConfig } from './defaults';
+import { RIndentConfig } from './types';
 
-export class ConfigurationManager {
-  private static instance: ConfigurationManager;
-  
-  public static getInstance(): ConfigurationManager {
-    if (!ConfigurationManager.instance) {
-      ConfigurationManager.instance = new ConfigurationManager();
-    }
-    return ConfigurationManager.instance;
-  }
-  
-  /**
-   * Get current configuration by merging user settings with defaults
-   */
-  public getConfig(): RIndentConfig {
-    const config = vscode.workspace.getConfiguration('rIndent');
-    
-    return {
-      // Support backward compatibility with pipeIndentSize
-      indentSize: config.get('indentSize', config.get('pipeIndentSize', DEFAULT_CONFIG.indentSize)),
-      alignFunctionArguments: config.get('alignFunctionArguments', DEFAULT_CONFIG.alignFunctionArguments),
-      enableDebugLogging: config.get('enableDebugLogging', DEFAULT_CONFIG.enableDebugLogging),
-      engine: config.get<'rules'|'context'|'air'>('engine', DEFAULT_CONFIG.engine as 'rules'|'context'|'air'),
-      airExecutablePath: config.get<string>('airExecutablePath', ''),
-      showStatusBar: config.get<boolean>('showStatusBar', false),
-    };
-  }
-  
-  /**
-   * Watch for configuration changes
-   */
-  public onConfigurationChanged(callback: (config: RIndentConfig) => void): vscode.Disposable {
-    return vscode.workspace.onDidChangeConfiguration((event) => {
-      if (event.affectsConfiguration('rIndent')) {
-        callback(this.getConfig());
-      }
-    });
-  }
-  
-  /**
-   * Get editor-specific settings (tab size, insert spaces)
-   */
-  public getEditorConfig(): { tabSize: number; insertSpaces: boolean } {
-    const editor = vscode.window.activeTextEditor;
-    if (!editor) {
-      return { tabSize: 2, insertSpaces: true };
-    }
-    
-    const options = editor.options;
-    return {
-      tabSize: typeof options.tabSize === 'number' ? options.tabSize : 2,
-      insertSpaces: typeof options.insertSpaces === 'boolean' ? options.insertSpaces : true,
-    };
-  }
-  
-  /**
-   * Create indentation string based on editor settings
-   */
-  public createIndent(level: number): string {
-    const editorConfig = this.getEditorConfig();
-    
-    if (editorConfig.insertSpaces) {
-      return ' '.repeat(level * editorConfig.tabSize);
-    } else {
-      return '\t'.repeat(level);
-    }
-  }
-  
-  /**
-   * Calculate indentation level from whitespace string
-   */
-  public getIndentLevel(whitespace: string): number {
-    const editorConfig = this.getEditorConfig();
-    
-    if (editorConfig.insertSpaces) {
-      return Math.floor(whitespace.length / editorConfig.tabSize);
-    } else {
-      return whitespace.length; // Each tab is one level
-    }
-  }
+/** Resolve resource/language settings on each operation; no cached active-editor state. */
+export function getConfig(
+  document?: vscode.TextDocument,
+  options?: Pick<vscode.FormattingOptions, 'insertSpaces' | 'tabSize'>,
+): RIndentConfig {
+  const settings = vscode.workspace.getConfiguration('rIndent', document);
+  const editor = vscode.workspace.getConfiguration('editor', document);
+  const active = vscode.window.activeTextEditor;
+  const editorOptions =
+    options || (active && active.document === document ? active.options : undefined);
+  const specified = settings.inspect<number>('indentSize');
+  const width =
+    specified?.workspaceFolderLanguageValue ??
+    specified?.workspaceLanguageValue ??
+    specified?.globalLanguageValue ??
+    specified?.workspaceFolderValue ??
+    specified?.workspaceValue ??
+    specified?.globalValue;
+  return normalizeConfig({
+    indentSize:
+      width ?? settings.get<number>('pipeIndentSize', settings.get<number>('indentSize', 2)),
+    alignFunctionArguments: settings.get<boolean>('alignFunctionArguments', true),
+    enableDebugLogging: settings.get<boolean>('enableDebugLogging', false),
+    enabled: settings.get<boolean>('enabled', true),
+    engine: settings.get<RIndentConfig['engine']>('engine', 'rules'),
+    showStatusBar: settings.get<boolean>('showStatusBar', false),
+    insertSpaces:
+      typeof editorOptions?.insertSpaces === 'boolean'
+        ? editorOptions.insertSpaces
+        : editor.get<boolean>('insertSpaces', true),
+    tabSize:
+      typeof editorOptions?.tabSize === 'number'
+        ? editorOptions.tabSize
+        : editor.get<number>('tabSize', 2),
+  });
 }
-
-
-

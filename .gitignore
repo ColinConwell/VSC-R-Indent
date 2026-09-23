@@ -1,5 +1,4 @@
 # IDE + AI
-.vscode/
 .cursor/
 .cursorignore
 
@@ -43,7 +42,6 @@ lerna-debug.log*
 .yarnrc
 
 # Package manager files
-package-lock.json
 yarn.lock
 .yarn-integrity
 .pnp.*
@@ -69,7 +67,6 @@ Thumbs.db
 
 # IDE files
 .idea/
-.vscode/*
 *.sublime-project
 *.sublime-workspace
 *.swp
@@ -81,3 +78,13 @@ Thumbs.db
 .tmp/
 temp/
 .cache/
+
+# Local test and package artifacts
+artifacts/*
+!artifacts/.gitkeep
+.test-user-data/
+playwright-report/
+test-results/
+.vscode/settings.json
+
+output/playwright/

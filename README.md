@@ -1,240 +1,124 @@
-# R Indent - VSCode Extension
+# RStudio Indent
 
-Intelligent auto-indentation for R that emulates RStudio's indentation behavior in VSCode and CodeOSS IDEs (e.g. Cursor, Positron).
+RStudio-style indentation while typing R in VS Code and compatible desktop editors. Developed by [Colin Conwell](https://github.com/ColinConwell), independently of Posit and the RStudio project.
 
-## Features
-
-### **RStudio-Style Bracket Alignment**
-- Newlines wrap to the indentation of the opening bracket
-
-### **RStudio-Style Chain Indentation**
-- Pipe operators (`%>%`, `|>`) with 2-space continuation indentation
-- Arithmetic operators (`+`, `-`, `*`, `/`) for ggplot and calculations
-- Assignment operators (`<-`, `=`, `->`) with proper alignment
-- Comparison and logical operators with consistent indentation
-- Context-aware: chains take precedence outside parentheses
-
-### **Function Argument Alignment**
-- Aligns arguments to opening parentheses inside function calls
-- Parameter assignments with additive indentation (bracket alignment + 2 spaces)
-- Handles nested function calls and complex expressions
-- Supports all bracket types: `()`, `[]`, `{}`
-- Immediate newlines after opening brackets get default indentation
-
-### **Context-Sensitive Logic**
-- Proximity-based additive rule system for cooperative indentation
-- Bracket alignment takes precedence inside parentheses over outer operators
-- Operator chains apply outside parentheses
-- Parameter assignments combine with bracket alignment inside parentheses
-- Intelligent closing bracket context detection
-- No indentation after completed chains
-
-## How It Works
-
-The extension analyzes your R code context when you press Enter or type closing brackets, applying intelligent indentation rules:
+Press Enter to align function arguments, indent parameter values, and continue operator chains. Standalone closing brackets align with their matching opener. RStudio Indent changes leading whitespace and newline insertion; it does not reformat an entire document, execute R, or call an external formatter.
 
 ```r
-# Operator chain indentation (2 spaces)
-ggplot(mtcars, aes(x = disp, y = mpg)) +
-  geom_point() +                        # ← 2-space indentation
-  geom_smooth() +
-  labs(title = "My Plot")
-
-# Pipe chains with 2-space indentation
-mtcars %>%
-  filter(mpg > 20) %>%                  # ← 2-space indentation
-  select(mpg, cyl, hp) %>%
-  arrange(desc(mpg))
-
-# Function argument alignment
-result <- my_function(arg1 = value1,
-                      arg2 = value2,    # ← Aligns to opening parenthesis
-                      arg3 = value3)
-
-# Parameter assignments: bracket alignment + 2 spaces
 strtoi("5",
-       base = 
-         10L)                          # ← 7 (bracket) + 2 (param) = 9 spaces
+       base =
+         10L,
+       ok =
+         TRUE)
 
-# Arithmetic chains
-result <- 5 +
-  10 +                                  # ← 2-space indentation
-  15 *
-  20
+mtcars |>
+  filter(mpg > 20) |>
+  select(mpg, cyl)
 
-# Context-aware: bracket alignment inside parentheses
-ggplot(data) +
-  coord_radial(start = -0.4 * pi,
-               end = 0.4 * pi,          # ← Bracket alignment wins inside ()
-               inner.radius = 0.3)
-```
-
-## Configuration
-
-Access settings via `Preferences > Settings > Extensions > R Indent`:
-
-| Setting | Default | Description |
-|---------|---------|-------------|
-| `indentSize` | `2` | Base indentation size for all operations (operator chains, brackets, etc.) |
-| `alignFunctionArguments` | `true` | Align function args to opening parentheses |
-| `enableDebugLogging` | `false` | Enable structured debug logging (Auto-Indent Check and Applied logs) |
-| `engine` | `rules` | Indentation engine: `rules` (default), `ast`, or `air` (experimental) |
-| `airExecutablePath` | `` | Optional absolute path to `air` binary for `engine = "air"` |
-| `showStatusBar` | `false` | Show current engine in status bar (click to toggle). Off by default |
-
-### Example Configuration
-
-```json
-{
-  "rIndent.indentSize": 2,
-  "rIndent.alignFunctionArguments": true,
-  "rIndent.enableDebugLogging": false,
-  "rIndent.engine": "rules"
+if (ready) {
+  process(data)
+  report(data)
 }
 ```
 
-## Engines
-
-### Rules (default mode)
-- Priority-based, cooperative rules implemented in TypeScript
-- Fast and robust; emulates RStudio behavior across common scenarios
-
-### AST (experimental)
-- Lightweight AST-like parsing to improve context decisions
-- Adds cases for commas, parameter alignment, line-start operators, mixed bracket/pipe chains
-- Comparable performance to Rules, helpful on complex nesting
-
-### [Air](https://github.com/posit-dev/air) (experimental)
-- Uses `posit-dev/air` formatter on a small slice for on-type indentation
-- Configure with `"rIndent.engine": "air"` and (optionally) `"rIndent.airExecutablePath"`
-- Best parity with Air/RStudio formatting but slower for on-type; recommended to try and switch back if performance is a concern
-
-## Commands
-
-- R Indent: Toggle Engine (`rIndent.toggleEngine`)
-- R Indent: Show Recent Logs (`rIndent.showRecentLogs`)
-- R Indent: Toggle Debug Logging (`rIndent.toggleDebugLogging`)
-
 ## Installation
 
-### From Local Development
-- **VS Code**: `npm run install:local`
-- **Cursor**: `npm run install:cursor`
+This is a release candidate, not yet a published marketplace listing. Build a VSIX or use the isolated browser sandbox below. In VS Code, Cursor, or Positron, run **Extensions: Install from VSIX…** and select `artifacts/rstudio-indent.vsix`.
 
-### Manual Installation
-```bash
-# Build the extension
-npm run compile
+The extension ID is now `ColinConwell.rstudio-indent`. If you previously installed the local `ColinConwell.vsc-r-indent` prototype, disable or uninstall that old extension to prevent both handling indentation. Existing `rIndent.*` preferences retain their names.
 
-# Install in VS Code
-bash ./scripts/install-local.sh
+VS Code 1.95 or later is the minimum API target. R need not be installed to use indentation. Development testing uses the containerized browser editor and headless engine checks. The container exercises code-server's Node extension host; editor-specific Cursor/Positron compatibility is not certified by this workflow. This is not a browser-only extension for vscode.dev.
 
-# Install in Cursor
-bash ./scripts/install-local.sh --cursor
+## Behavior
+
+| Context | Result |
+|---|---|
+| `f(a,` | Align the next argument with the column after `(`. |
+| `f(a =` | Add one indentation level to the argument alignment. |
+| `long_function(` | Use one level after the opener when the first argument starts on a new line. |
+| `x +`, `x \|>`, `x %>%` | Continue by one level; further chain steps retain that level. |
+| Completed chain | Return to the chain's base indentation. |
+| Open `{` block | Keep subsequent statements inside the block. |
+| Standalone `)`, `]`, or `}` | Align to the matching opener's line indentation. |
+| Closing a call within a statement | Preserve that statement's indentation. |
+| Comments, strings, quoted names | Ignore their bracket/operator characters when interpreting structure. |
+
+The original [manual script](tests/manual_indent_tests.R) is preserved byte-for-byte. Its consecutive nonblank lines are replayed in pure-engine tests, with additional browser tests using the same script. This makes the intended alignment a checked contract. Full parity with every RStudio editing case is not claimed.
+
+Multi-cursor input, selected text, snippets, empty bracket pairs, and unsupported/ambiguous contexts retain native editor handling. Unbraced control flow is delegated to the editor. R Markdown and Quarto fenced chunks are not advertised as supported; the extension targets documents whose language ID is `r`.
+
+## Settings
+
+| Setting | Default | Purpose |
+|---|---|---|
+| `rIndent.enabled` | `true` | Enable Enter and closing-bracket indentation. |
+| `rIndent.indentSize` | `2` | Additional indentation in columns; integer from 1–16. |
+| `rIndent.alignFunctionArguments` | `true` | Align arguments after the opener; disable for one-level indentation. |
+| `rIndent.enableDebugLogging` | `false` | Record decisions, locations, and timing in the local output channel. |
+| `rIndent.showStatusBar` | `false` | Show enabled status; click to open logs. |
+
+Editor `insertSpaces` and `tabSize` settings are respected. With tabs enabled, alignment uses tabs plus any required remainder spaces. Settings are resolved for each document, including language and workspace scopes.
+
+Closing-bracket formatting uses the editor's on-type formatter API. Enable it for R:
+
+```json
+{
+  "[r]": {
+    "editor.formatOnType": true
+  },
+  "rIndent.indentSize": 2
+}
 ```
+
+Enter uses a narrowly scoped keybinding, independently of `formatOnType`. The extension does not register the global `type` command. Other extensions can still compete for Enter or on-type formatting; if behavior differs, test in a fresh profile and inspect keyboard shortcut troubleshooting.
+
+### Legacy Engines
+
+`rIndent.engine = "ast"` and `"air"` remain readable but now resolve to the supported rules engine. A one-time diagnostic explains this. `rIndent.airExecutablePath` is deprecated and unused. The experimental engines were consolidated because they could disagree with the manual contract or silently fail. Air remains useful as a separate formatter extension; RStudio Indent does not invoke it.
+
+## Logs and Support
+
+Run **RStudio Indent: Show Logs** or **RStudio Indent: Toggle Debug Logging**. Logs identify the selected rule, line/column, target indentation, and elapsed time. Activation and errors are logged even when detailed logging is off. The in-memory diagnostic history is bounded to 200 records.
+
+No telemetry is sent. Document source, document paths, and executable settings are excluded from diagnostic records. Logs are local to the editor; inspect any attachments before sharing them.
+
+Report issues at [GitHub Issues](https://github.com/ColinConwell/VSC-R-Indent/issues). Include a minimal R example with the cursor marked, the expected output, editor/OS versions, tab settings, and any relevant log records. Contact: [Colin Conwell](mailto:colinconwell@gmail.com); institutional address: [conwell@mit.edu](mailto:conwell@mit.edu).
 
 ## Development
 
-### Setup
-```bash
-npm install             # Install dependencies
-npm run compile         # Build once
-npm run watch           # Watch for changes
+Use the Node version in `.nvmrc` (Node 22+ required by release tools):
+
+```sh
+npm ci
+npm test
+npm run test:performance
+npm run build:vsix
 ```
 
-### Testing
+`npm test` performs a clean TypeScript build, exact unit tests, and package allowlist/import checks. Use the container below for editing tests. Desktop editor launchers and Electron-based test commands have been removed; development agents should not open local VS Code, Cursor, or Positron instances.
 
-1. Launch Extension Development Host (Press `F5` in VS Code)
-2. Test with sample R code (see tests/indent_test.R for examples)
+### Browser Test Editor
 
-### Project Structure
-```
-src/
-├── config/                       # Configuration management
-│   ├── defaults.ts               # Default configuration values
-│   ├── settings.ts               # VSCode settings integration
-│   └── types.ts                  # Type definitions
-├── indentation/                  # Engines and parsers
-│   ├── indentationEngine.ts      # Main engine (rules/ast/air) + cooperative logic
-│   ├── rParser.ts                # Lightweight R scanning (brackets, comments)
-│   ├── rASTParser.ts             # AST-like window parser for AST mode
-│   └── airRunner.ts              # Slice-based AIR CLI integration
-├── rules/                        # Indentation rules (priority-based)
-│   ├── BaseRule.ts               # Abstract base
-│   ├── OperatorChainRules.ts     # Operator chains
-│   ├── ParameterRules.ts         # Parameter assignment
-│   ├── BracketRules.ts           # Bracket alignment & closing
-│   └── AirASTRules.ts            # AST mode rules (AIR stylization inspired)
-├── utils/
-│   └── debugUtils.ts             # Structured debug logging (toggleable)
-└── extension.ts                  # Entry point (commands, status bar, providers)
+With Docker running:
 
-tests/
-├── unit/                         # TypeScript unit tests
-│   ├── testFramework.ts
-│   ├── bracketTests.ts
-│   └── pipeTests.ts
-├── headless-js/                  # Headless engine tests (mocked vscode)
-│   └── engineAstMode.spec.js     # AST coverage, plus others
-├── performance/                  # Perf benchmarks (rules vs ast vs air)
-│   └── bench.air.spec.js
-├── integration/                  # VS Code host integration tests (CI-focused)
-│   ├── runTest.ts
-│   └── suite/
-│       └── indentation.test.ts
-├── manual_indent_tests.R         # Manual scenarios
-└── comprehensive_test.R          # Extended scenarios
+```sh
+npm ci
+npm run sandbox:up
 ```
 
-## Architecture
+Open [the local test editor](http://127.0.0.1:8788/?folder=/home/coder/workspace). Open `manual_indent_tests.R` from Explorer, or use Quick Open. The extension is already installed; logs and the status bar are enabled. The editor contains editable copies of the two existing scripts. It does not mount your checkout, home directory, credentials, or Docker socket. R packages are not installed and these scripts are not automatically executed.
 
-The extension uses a modular, proximity-based rule architecture:
+Run automated real-keyboard tests:
 
-1. **Context Parser**: Analyzes R syntax and cursor context
-2. **Proximity-Based Engine**: Applies cooperative indentation rules
-3. **Structured Logging**: Detailed debug output with rule explanations
-4. **Configuration**: User-customizable settings
-5. **VSCode Integration**: Seamless editor integration
+```sh
+npx playwright install chromium
+npm run sandbox:test
+```
 
-### Rule Priority & Cooperation
-1. **OperatorChain** (120) - Highest priority for operator chains outside parentheses
-2. **ParameterAssignment** (110) - Parameter value indentation (additive with brackets)
-3. **BracketAlignment** (100) - Function argument alignment
-4. **HangingIndent** (90) - Fallback indentation
-5. **ClosingBracketContext** (85) - Context-aware closing bracket alignment
-6. **ClosingBracket** (80) - Basic closing bracket handling
+After code changes, rerun `npm run sandbox:up` and reload the browser to test the rebuilt VSIX. Stop and remove the sandbox with `npm run sandbox:down`. Local binding is intentional: this unauthenticated development editor must not be exposed to a network. Change the host port with `RSTUDIO_INDENT_PORT` if 8788 is occupied.
 
-### Proximity-Based Additive System
-- **Immediate Layer**: Parameter assignments, operator chains at cursor
-- **Surrounding Layer**: Bracket alignment, hanging indents
-- **Terminating Rules**: Closing bracket contexts override all others
-- **Cooperative Logic**: Rules combine additively (bracket position + parameter indent)
+See [Testing](docs/TESTING.md), [Architecture](docs/ARCHITECTURE.md), [Related Extensions](docs/RELATED-EXTENSIONS.md), and [Publishing](docs/PUBLISHING.md) for details.
 
-### Key Design Principles
-- **Context-first**: Parse complete context before applying rules
-- **Additive cooperation**: Rules combine rather than compete
-- **RStudio compatibility**: Matches RStudio's indentation behavior exactly
-- **Intelligent overrides**: Bracket alignment takes precedence over outer operators
-- **Structured debugging**: Comprehensive rule application logging
+## License
 
-## Comparison with RStudio
-
-| Feature | RStudio | This Extension |
-|---------|---------|----------------|
-| Operator chain indentation | ✅ | ✅ |
-| Function argument alignment | ✅ | ✅ |
-| Parameter assignment alignment | ✅ | ✅ |
-| Context-aware rules | ✅ | ✅ |
-| Chain completion detection | ✅ | ✅ |
-| Pipe operator support | ✅ | ✅ |
-| Arithmetic operator chains | ✅ | ✅ |
-| Configurable behavior | Limited | ~ In Progress |
-| Works in Cursor IDE | ❌ | ✅ |
-| Works in Positron IDE | ❌ | ✅ |
-| Performance | Native | Fast (TypeScript) |
-
-
-### Reporting Issues
-- Use the [GitHub Issues](https://github.com/ColinConwell/VSC-R-Indent/issues) page
-- Include R code examples that demonstrate the issue
-- Specify your VSCode version and extension settings
+GPL-3.0-only; see [LICENSE](LICENSE). The source for each release should be tagged alongside its VSIX. The existing R-inspired icon is retained from the prototype; artwork provenance must be confirmed before public publication. RStudio is a Posit product name; this extension is independently developed and does not imply endorsement.

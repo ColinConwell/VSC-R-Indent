@@ -1,0 +1,19 @@
+{
+  "workbench.startupEditor": "none",
+  "workbench.colorTheme": "Default Dark Modern",
+  "workbench.editor.enablePreview": false,
+  "security.workspace.trust.enabled": false,
+  "extensions.autoUpdate": false,
+  "extensions.autoCheckUpdates": false,
+  "editor.formatOnType": true,
+  "editor.detectIndentation": false,
+  "editor.insertSpaces": true,
+  "editor.tabSize": 2,
+  "editor.quickSuggestions": false,
+  "editor.inlineSuggest.enabled": false,
+  "rIndent.showStatusBar": true,
+  "rIndent.enableDebugLogging": true,
+  "chat.disableAIFeatures": true,
+  "window.title": "RStudio Indent Test Editor${separator}${dirty}${activeEditorShort}",
+  "workbench.secondarySideBar.defaultVisibility": "hidden"
+}
